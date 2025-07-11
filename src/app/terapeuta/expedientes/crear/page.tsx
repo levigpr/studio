@@ -51,6 +51,7 @@ export default function CrearExpedientePage() {
         const pacientesList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
         setPacientes(pacientesList);
       } catch (error) {
+        console.error("Error fetching patients: ", error);
         toast({
           title: "Error",
           description: "No se pudieron cargar los pacientes.",
@@ -103,7 +104,7 @@ export default function CrearExpedientePage() {
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Crear Nuevo Expediente</CardTitle>
           <CardDescription>
-            Selecciona un paciente para crear su expediente. Puedes añadir la evaluación clínica inicial ahora o más tarde.
+            Selecciona un paciente de la lista para crear su expediente clínico. Puedes añadir la evaluación inicial ahora o más tarde.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -124,7 +125,7 @@ export default function CrearExpedientePage() {
                       <SelectContent>
                         {pacientes.map(p => (
                           <SelectItem key={p.uid} value={p.uid}>
-                            {p.nombre}
+                            {p.nombre} ({p.email})
                           </SelectItem>
                         ))}
                       </SelectContent>

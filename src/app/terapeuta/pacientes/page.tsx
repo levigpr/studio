@@ -92,7 +92,7 @@ export default function PacientesPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No se encontraron pacientes.
+                      No se encontraron pacientes registrados.
                     </TableCell>
                   </TableRow>
                 )}
