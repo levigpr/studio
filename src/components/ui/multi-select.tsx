@@ -48,6 +48,13 @@ export function MultiSelect({
     onChange(selected.filter((i) => i !== item))
   }
 
+  const handleSelect = (value: string) => {
+    const newSelected = selected.includes(value)
+      ? selected.filter((item) => item !== value)
+      : [...selected, value];
+    onChange(newSelected);
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -73,7 +80,21 @@ export function MultiSelect({
                         }}
                     >
                         {option.label}
-                        <X className="ml-1 h-3 w-3" />
+                        <button
+                          className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleUnselect(option.value);
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={() => handleUnselect(option.value)}
+                        >
+                          <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        </button>
                     </Badge>
                 ))
             ) : (
@@ -92,11 +113,10 @@ export function MultiSelect({
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  onSelect={() => {
-                    const newSelected = selected.includes(option.value)
-                      ? selected.filter((item) => item !== option.value)
-                      : [...selected, option.value];
-                    onChange(newSelected);
+                  onSelect={() => handleSelect(option.value)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                   }}
                 >
                   <Check

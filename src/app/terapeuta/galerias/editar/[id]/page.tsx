@@ -17,7 +17,7 @@ import { Loader2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 const formSchema = z.object({
-  pacientesAsignados: z.array(z.string()).nonempty("Debes asignar al menos un paciente."),
+  pacientesAsignados: z.array(z.string()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -143,7 +143,7 @@ export default function EditarGaleriaPage() {
                         selected={field.value}
                         onChange={field.onChange}
                         placeholder={pacientes.length === 0 ? "No hay pacientes disponibles" : "Seleccionar pacientes..."}
-                        disabled={pacientes.length === 0}
+                        disabled={pacientes.length === 0 || isSubmitting}
                       />
                     </FormControl>
                     <FormMessage />
