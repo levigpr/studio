@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if the user is a therapist
+    function isTerapeuta() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta';
+    }
+
+    // Helper function to check if the user is a patient
+    function isPaciente() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'paciente';
+    }
+    
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if the user is the owner of the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Rules for 'usuarios' collection
+    match /usuarios/{userId} {
+      // Any authenticated user can create their own user document (signup)
+      allow create: if isAuthenticated() && isOwner(userId);
+      // A user can read their own profile
+      // A therapist can read any user profile (to list patients)
+      allow read: if isAuthenticated() && (isOwner(userId) || isTerapeuta());
+      // A user can update their own profile
+      allow update: if isAuthenticated() && isOwner(userId);
+      // No one can delete user profiles for now
+      allow delete: if false;
+    }
+
+    // Rules for 'expedientes' collection
+    match /expedientes/{expedienteId} {
+      // Only therapists can create new expedientes
+      allow create: if isAuthenticated() && isTerapeuta();
+      // A patient can read their own expediente
+      // A therapist can read any expediente they created
+      allow read: if isAuthenticated() && 
+                    (resource.data.pacienteUid == request.auth.uid || resource.data.terapeutaUid == request.auth.uid);
+      // Only the therapist who created the expediente can update it
+      allow update: if isAuthenticated() && isTerapeuta() && resource.data.terapeutaUid == request.auth.uid;
+      // Only the therapist who created it can delete it.
+      allow delete: if isAuthenticated() && isTerapeuta() && resource.data.terapeutaUid == request.auth.uid;
+    }
+
+    // Rules for 'galerias' collection
+    match /galerias/{galeriaId} {
+       // Only therapists can create new galerias
+      allow create: if isAuthenticated() && isTerapeuta();
+      // A patient can read a galeria if they are assigned to it
+      // A therapist can read any galeria they created
+      allow read: if isAuthenticated() && 
+                    (request.auth.uid in resource.data.pacientesAsignados || resource.data.creadaPor == request.auth.uid);
+      // Only the therapist who created the galeria can update it
+      allow update: if isAuthenticated() && isTerapeuta() && resource.data.creadaPor == request.auth.uid;
+       // Only the therapist who created it can delete it.
+      allow delete: if isAuthenticated() && isTerapeuta() && resource.data.creadaPor == request.auth.uid;
+    }
+  }
+}
