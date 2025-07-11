@@ -53,7 +53,7 @@ const progresoFormSchema = z.object({
     dolorInicial: z.number().min(0).max(10),
     dolorFinal: z.number().min(0).max(10),
     progresoPercibido: z.enum(['mejoria-significativa', 'mejoria-leve', 'sin-cambios', 'retroceso-leve', 'retroceso-significativo']).optional(),
-    estadoAnimoObservado: z.enum(['muy-bien', 'bien', 'regular', 'mal', 'muy-mal']).optional(),
+    estadoAnimoObservado: z.enum(['motivado', 'relajado', 'ansioso', 'frustrado', 'estresado', 'optimista']).optional(),
     observacionesObjetivas: z.string().optional(),
     tecnicasAplicadas: z.string().optional(),
     planProximaSesion: z.string().optional(),
@@ -286,6 +286,14 @@ export default function ExpedienteDetallePage() {
         case 'regular': return <Meh className="text-yellow-500" />;
         case 'mal': return <Frown className="text-orange-500" />;
         case 'muy-mal': return <Frown className="text-red-500" />;
+        case 'motivado':
+        case 'optimista':
+        case 'relajado':
+            return <Smile className="text-green-500" />;
+        case 'ansioso':
+        case 'frustrado':
+        case 'estresado':
+            return <Frown className="text-orange-500" />;
         default: return <Meh />;
     }
   }
@@ -296,6 +304,15 @@ export default function ExpedienteDetallePage() {
     'sin-cambios': 'Sin Cambios',
     'retroceso-leve': 'Retroceso Leve',
     'retroceso-significativo': 'Retroceso Significativo'
+  };
+
+  const estadoAnimoLabels: Record<NonNullable<Sesion['estadoAnimoObservado']>, string> = {
+    motivado: 'Motivado',
+    relajado: 'Relajado',
+    ansioso: 'Ansioso',
+    frustrado: 'Frustrado',
+    estresado: 'Estresado',
+    optimista: 'Optimista'
   };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
@@ -370,7 +387,7 @@ export default function ExpedienteDetallePage() {
                                                     <span>Dolor Inicial: {sesion.dolorInicial ?? 'N/A'}/10</span>
                                                     <span>Dolor Final: {sesion.dolorFinal ?? 'N/A'}/10</span>
                                                     {sesion.progresoPercibido && <span>Progreso: {progresoLabels[sesion.progresoPercibido]}</span>}
-                                                    {sesion.estadoAnimoObservado && <span className="flex items-center gap-1">Ánimo: <span className="capitalize">{sesion.estadoAnimoObservado.replace('-', ' ')}</span> {getMoodIcon(sesion.estadoAnimoObservado)}</span>}
+                                                    {sesion.estadoAnimoObservado && <span className="flex items-center gap-1">Ánimo: <span className="capitalize">{estadoAnimoLabels[sesion.estadoAnimoObservado]}</span> {getMoodIcon(sesion.estadoAnimoObservado)}</span>}
                                                 </div>
                                                 {sesion.observacionesObjetivas && <div><p className="font-semibold text-foreground">Observaciones Objetivas:</p><p className="whitespace-pre-wrap">{sesion.observacionesObjetivas}</p></div>}
                                                 {sesion.tecnicasAplicadas && <div><p className="font-semibold text-foreground">Técnicas Aplicadas:</p><p className="whitespace-pre-wrap">{sesion.tecnicasAplicadas}</p></div>}
@@ -530,17 +547,24 @@ export default function ExpedienteDetallePage() {
                         )} />
 
                         <FormField control={progresoForm.control} name="estadoAnimoObservado" render={({ field }) => (
-                            <FormItem>
+                           <FormItem>
                                 <FormLabel>Estado de Ánimo Observado</FormLabel>
-                                <FormControl>
-                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-wrap gap-2 pt-2">
-                                        <FormItem><FormControl><RadioGroupItem value="muy-bien" id="r1_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r1_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Smile size={20}/> Muy Bien</FormLabel></FormItem>
-                                        <FormItem><FormControl><RadioGroupItem value="bien" id="r2_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r2_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Smile size={20}/> Bien</FormLabel></FormItem>
-                                        <FormItem><FormControl><RadioGroupItem value="regular" id="r3_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r3_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Meh size={20}/> Regular</FormLabel></FormItem>
-                                        <FormItem><FormControl><RadioGroupItem value="mal" id="r4_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r4_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Frown size={20}/> Mal</FormLabel></FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                                <FormMessage/>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecciona el estado de ánimo..." />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="motivado">Motivado</SelectItem>
+                                        <SelectItem value="relajado">Relajado</SelectItem>
+                                        <SelectItem value="optimista">Optimista</SelectItem>
+                                        <SelectItem value="ansioso">Ansioso</SelectItem>
+                                        <SelectItem value="frustrado">Frustrado</SelectItem>
+                                        <SelectItem value="estresado">Estresado</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
                             </FormItem>
                         )}/>
                     </div>
