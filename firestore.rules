@@ -1,10 +1,8 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper Functions
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
@@ -13,64 +11,31 @@ service cloud.firestore {
       return request.auth.token.rol == 'terapeuta';
     }
 
-    function isPatient() {
-        return request.auth.token.rol == 'paciente';
-    }
-
     match /usuarios/{userId} {
-      // Allow any authenticated user to create their own profile
-      allow create: if request.auth != null;
-      // Allow users to read their own profile
-      // Allow therapists to read any user profile
       allow read: if isOwner(userId) || isTherapist();
-      // Allow users to update their own profile
+      allow list: if isTherapist();
+      allow create: if request.resource.data.rol == 'paciente' || isTherapist();
       allow update: if isOwner(userId);
     }
     
     match /expedientes/{expedienteId} {
-        // Only therapists can create new records
-        allow create: if isTherapist() && 
-                        request.resource.data.terapeutaUid == request.auth.uid;
-        
-        // Therapists can read any record
-        // Patients can read their own record
-        allow read: if isTherapist() || (isPatient() && resource.data.pacienteUid == request.auth.uid);
-        
-        // Only the assigned therapist can update a record
-        allow update: if isTherapist() && resource.data.terapeutaUid == request.auth.uid;
+      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
+      allow create, update: if isTherapist();
     }
     
     match /sesiones/{sesionId} {
-        // Only therapists can create new sessions
-        allow create: if isTherapist();
-        
-        // Therapists can read any session
-        // Patients can read their own sessions
-        allow read, list: if isTherapist() || (isPatient() && resource.data.pacienteUid == request.auth.uid);
-        
-        // Only the assigned therapist can update a session
-        allow update: if isTherapist() && resource.data.terapeutaUid == request.auth.uid;
+      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
+      allow create, update: if isTherapist();
     }
     
     match /avances/{avanceId} {
-        // Patients can create their own progress reports
-        // Therapists can also create reports (e.g., during a session)
-        allow create: if request.auth != null && 
-                       request.resource.data.registradoPor == request.auth.uid;
-                       
-        // Therapists can read any report
-        // Patients can read their own reports
-        allow read, list: if isTherapist() || (isPatient() && resource.data.pacienteUid == request.auth.uid);
+      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
+      allow create: if isOwner(request.resource.data.pacienteUid);
     }
     
     match /galerias/{galeriaId} {
-        // Only therapists can create and update galleries
-        allow create, update: if isTherapist() &&
-                               request.resource.data.creadaPor == request.auth.uid;
-                               
-        // Therapists can read any gallery
-        // Patients can read galleries assigned to them
-        allow read: if isTherapist() || (isPatient() && request.auth.uid in resource.data.pacientesAsignados);
+      allow read: if isTherapist() || request.auth.uid in resource.data.pacientesAsignados;
+      allow create, update: if isTherapist();
     }
   }
 }
