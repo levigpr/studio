@@ -1,65 +1,52 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    function isAuth() {
+
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper function to check if the user is the owner of their profile
-    function isProfileOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Helper function to check if user is the therapist for a given resource
-    function isResourceTherapist(resource) {
-      return request.auth.uid == resource.data.terapeutaUid;
-    }
-
-    // Helper function to check if user is the patient for a given resource
-    function isResourcePatient(resource) {
-      return request.auth.uid == resource.data.pacienteUid;
-    }
-    
-    // Helper function to check if user is assigned to a gallery
-    function isAssignedToGallery(resource) {
-      return request.auth.uid in resource.data.pacientesAsignados;
-    }
-    
-    // Helper function to check if user is creator of a gallery
-    function isGalleryCreator(resource) {
-      return request.auth.uid == resource.data.creadaPor;
-    }
-
-    // Rules for user profiles
     match /usuarios/{userId} {
-      // Allow authenticated users to read the list of users (for therapist dropdowns)
-      allow list: if isAuth();
-      // Allow users to read their own profile, or if they are a therapist
-      allow get: if isAuth();
-      // Allow users to create their own profile or update their own profile
-      allow create, update: if isProfileOwner(userId);
-    }
-    
-    // Rules for medical records
-    match /expedientes/{expedienteId} {
-      allow read: if isAuth() && (isResourceTherapist(resource) || isResourcePatient(resource));
-      allow write: if isAuth() && isResourceTherapist(resource);
-    }
-    
-    // Rules for sessions
-    match /sesiones/{sesionId} {
-       allow read: if isAuth() && (isResourceTherapist(resource) || isResourcePatient(resource));
-       allow write: if isAuth() && isResourceTherapist(resource);
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if false; // Nadie puede borrar perfiles
     }
 
-    // Rules for galleries
+    match /expedientes/{expedienteId} {
+      // Los terapeutas pueden listar los expedientes donde ellos son el terapeuta.
+      allow list: if isSignedIn() && request.query.resource.data.terapeutaUid == request.auth.uid;
+      
+      // Un usuario puede leer un expediente si es el paciente o el terapeuta asignado.
+      allow get: if isSignedIn() && (request.auth.uid == resource.data.pacienteUid || request.auth.uid == resource.data.terapeutaUid);
+
+      // Solo el terapeuta asignado puede crear, actualizar o borrar el expediente.
+      allow write: if isSignedIn() && request.auth.uid == request.resource.data.terapeutaUid;
+    }
+
+    match /{path=**}/sesiones/{sesionId} {
+        // Un usuario puede leer sesiones si es el paciente o el terapeuta asignado
+        allow read: if isSignedIn() && (request.auth.uid == resource.data.pacienteUid || request.auth.uid == resource.data.terapeutaUid);
+        // Solo el terapeuta puede escribir en las sesiones
+        allow write: if isSignedIn() && request.auth.uid == request.resource.data.terapeutaUid;
+    }
+    
+    match /{path=**}/avances/{avanceId} {
+       // Un usuario puede leer avances si es el paciente o el terapeuta asignado
+       allow read: if isSignedIn() && (request.auth.uid == resource.data.pacienteUid || request.auth.uid == resource.data.terapeutaUid);
+       // Pacientes y terapeutas pueden crear avances
+       allow create: if isSignedIn() && (request.auth.uid == request.resource.data.pacienteUid || request.auth.uid == request.resource.data.terapeutaUid);
+       // Solo el terapeuta puede actualizar (en el futuro)
+       allow update, delete: if isSignedIn() && request.auth.uid == request.resource.data.terapeutaUid;
+    }
+
     match /galerias/{galeriaId} {
-      // A patient can read a gallery if they are assigned. A therapist can read if they created it.
-      allow read: if isAuth() && (isAssignedToGallery(resource) || isGalleryCreator(resource));
-      // Only the therapist who created the gallery can modify it.
-      allow write: if isAuth() && isGalleryCreator(resource);
+      // El terapeuta creador puede hacer todo.
+      allow write: if isSignedIn() && request.auth.uid == request.resource.data.creadaPor;
+      // El terapeuta creador y los pacientes asignados pueden leer.
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.creadaPor || request.auth.uid in resource.data.pacientesAsignados);
     }
   }
 }
