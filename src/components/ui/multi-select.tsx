@@ -93,12 +93,10 @@ export function MultiSelect({
                 <CommandItem
                   key={option.value}
                   onSelect={() => {
-                    onChange(
-                      selected.includes(option.value)
-                        ? selected.filter((item) => item !== option.value)
-                        : [...selected, option.value]
-                    )
-                    setOpen(true)
+                    const newSelected = selected.includes(option.value)
+                      ? selected.filter((item) => item !== option.value)
+                      : [...selected, option.value];
+                    onChange(newSelected);
                   }}
                 >
                   <Check
