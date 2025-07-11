@@ -48,6 +48,24 @@ export default function ExpedienteDetallePage() {
   const form = useForm<z.infer<typeof sesionFormSchema>>({
     resolver: zodResolver(sesionFormSchema),
   });
+  
+  const fetchSesiones = async () => {
+      if (!expedienteId) return;
+      try {
+        const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId));
+        const sesionesSnapshot = await getDocs(sesionesQuery);
+        const sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
+        
+        // Sort sessions by date client-side
+        sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
+
+        setSesiones(sesionesList);
+      } catch (error) {
+          console.error("Error fetching sessions:", error);
+          toast({ title: "Error", description: "No se pudieron cargar las sesiones.", variant: "destructive" });
+      }
+  }
+
 
   useEffect(() => {
     if (!expedienteId) return;
@@ -71,10 +89,7 @@ export default function ExpedienteDetallePage() {
           }
 
           // Fetch Sesiones
-          const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId), orderBy("fecha", "desc"));
-          const sesionesSnapshot = await getDocs(sesionesQuery);
-          const sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
-          setSesiones(sesionesList);
+          await fetchSesiones();
 
         } else {
           console.error("No such expediente!");
@@ -105,10 +120,7 @@ export default function ExpedienteDetallePage() {
       });
 
       // Refetch sesiones
-      const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId), orderBy("fecha", "desc"));
-      const sesionesSnapshot = await getDocs(sesionesQuery);
-      const sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
-      setSesiones(sesionesList);
+      await fetchSesiones();
 
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
       form.reset();
