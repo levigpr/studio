@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward } from "lucide-react";
+import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -43,14 +43,14 @@ const sesionFormSchema = z.object({
   }),
   ubicacion: z.string().optional(),
   nota: z.string().optional(),
-}).refine(data => data.modalidad === 'virtual' || (data.modalidad === 'presencial' && data.ubicacion), {
+}).refine(data => data.modalidad === 'virtual' || (data.modalidad === 'presencial' && data.ubicacion && data.ubicacion.length > 0), {
     message: "La ubicación es requerida para sesiones presenciales.",
     path: ["ubicacion"],
 });
 
 const progresoFormSchema = z.object({
-    dolorInicial: z.number().min(0).max(10).optional(),
-    dolorFinal: z.number().min(0).max(10).optional(),
+    dolorInicial: z.number().min(0).max(10),
+    dolorFinal: z.number().min(0).max(10),
     observacionesObjetivas: z.string().optional(),
     tecnicasAplicadas: z.string().optional(),
     planProximaSesion: z.string().optional(),
@@ -83,6 +83,8 @@ export default function ExpedienteDetallePage() {
     resolver: zodResolver(sesionFormSchema),
     defaultValues: {
       modalidad: "presencial",
+      nota: "",
+      ubicacion: "",
     }
   });
 
@@ -100,21 +102,21 @@ export default function ExpedienteDetallePage() {
 
   const modalidad = sesionForm.watch("modalidad");
   
-  const fetchRelatedData = async () => {
-      if (!expedienteId) return;
+  const fetchRelatedData = async (currentExpedienteId: string) => {
+      if (!currentExpedienteId) return;
       try {
         // Fetch Sesiones
-        const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId));
+        const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", currentExpedienteId));
         const sesionesSnapshot = await getDocs(sesionesQuery);
         let sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
-        sesionesList = sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
+        sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
         setSesiones(sesionesList);
 
         // Fetch Avances
-        const avancesQuery = query(collection(db, "avances"), where("expedienteId", "==", expedienteId));
+        const avancesQuery = query(collection(db, "avances"), where("expedienteId", "==", currentExpedienteId));
         const avancesSnapshot = await getDocs(avancesQuery);
         let avancesList = avancesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Avance));
-        avancesList = avancesList.sort((a, b) => {
+        avancesList.sort((a, b) => {
             if (a.fechaRegistro && b.fechaRegistro) {
                 return b.fechaRegistro.toMillis() - a.fechaRegistro.toMillis();
             }
@@ -129,7 +131,7 @@ export default function ExpedienteDetallePage() {
   }
 
   useEffect(() => {
-    if (!expedienteId) return;
+    if (!expedienteId || !user) return;
 
     async function fetchData() {
       setLoading(true);
@@ -139,6 +141,13 @@ export default function ExpedienteDetallePage() {
         
         if (expedienteDocSnap.exists()) {
           const expData = { id: expedienteDocSnap.id, ...expedienteDocSnap.data() } as Expediente;
+          // Security check: ensure the current user is the therapist for this expediente
+          if (expData.terapeutaUid !== user.uid) {
+             toast({ title: "Acceso denegado", description: "No tienes permiso para ver este expediente.", variant: "destructive" });
+             router.push('/terapeuta/expedientes');
+             return;
+          }
+
           setExpediente(expData);
 
           const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
@@ -146,12 +155,14 @@ export default function ExpedienteDetallePage() {
           if (pacienteDocSnap.exists()) {
             setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
           }
-          await fetchRelatedData();
+          await fetchRelatedData(expedienteId);
         } else {
+          toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
           router.push('/terapeuta/expedientes');
         }
       } catch (error) {
-        toast({ title: "Error", description: "No se pudieron cargar los datos.", variant: "destructive" });
+        console.error("Error fetching data:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -159,7 +170,7 @@ export default function ExpedienteDetallePage() {
 
     fetchData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expedienteId, router, toast]);
+  }, [expedienteId, user, router, toast]);
 
   async function onAgendarSesion(values: z.infer<typeof sesionFormSchema>) {
     if (!user || !expediente) return;
@@ -177,7 +188,7 @@ export default function ExpedienteDetallePage() {
         creadaEn: serverTimestamp(),
       });
 
-      await fetchRelatedData();
+      await fetchRelatedData(expedienteId);
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
       sesionForm.reset({ modalidad: 'presencial', fecha: undefined, ubicacion: '', nota: '' });
       setIsModalOpen(false);
@@ -197,15 +208,16 @@ export default function ExpedienteDetallePage() {
             estado: "completada",
             dolorInicial: values.dolorInicial,
             dolorFinal: values.dolorFinal,
-            observacionesObjetivas: values.observacionesObjetivas,
-            tecnicasAplicadas: values.tecnicasAplicadas,
-            planProximaSesion: values.planProximaSesion,
+            observacionesObjetivas: values.observacionesObjetivas || "",
+            tecnicasAplicadas: values.tecnicasAplicadas || "",
+            planProximaSesion: values.planProximaSesion || "",
             notasTerapeuta: values.notasTerapeuta,
         });
-        await fetchRelatedData();
+        await fetchRelatedData(expedienteId);
         toast({ title: "Éxito", description: "La sesión ha sido marcada como completada." });
         setIsProgresoModalOpen(false);
         progresoForm.reset();
+        setSelectedSesion(null);
     } catch (error) {
         toast({ title: "Error", description: "No se pudo actualizar la sesión.", variant: "destructive" });
     } finally {
@@ -218,7 +230,7 @@ export default function ExpedienteDetallePage() {
     try {
         const sesionRef = doc(db, "sesiones", sesionId);
         await updateDoc(sesionRef, { estado: "cancelada" });
-        await fetchRelatedData();
+        await fetchRelatedData(expedienteId);
         toast({ title: "Éxito", description: "La sesión ha sido cancelada." });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo cancelar la sesión.", variant: "destructive" });
@@ -232,7 +244,14 @@ export default function ExpedienteDetallePage() {
     setAiSummary(null);
     setIsAiModalOpen(true);
     try {
-      const serializableAvance = JSON.parse(JSON.stringify(avance));
+      // Ensure date objects are converted to strings for serialization
+      const serializableAvance = JSON.parse(JSON.stringify(avance, (key, value) => {
+          if (value && typeof value === 'object' && value.seconds !== undefined) {
+              return new Date(value.seconds * 1000).toISOString();
+          }
+          return value;
+      }));
+
       const summary = await generateProgressSummary({ avance: serializableAvance });
       setAiSummary(summary);
     } catch (error) {
@@ -253,7 +272,7 @@ export default function ExpedienteDetallePage() {
     }
   };
 
-  const getMoodIcon = (mood: Avance['estadoAnimo']) => {
+  const getMoodIcon = (mood?: Avance['estadoAnimo']) => {
     switch (mood) {
         case 'muy-bien': return <Smile className="text-green-500" />;
         case 'bien': return <Smile className="text-lime-500" />;
@@ -333,8 +352,8 @@ export default function ExpedienteDetallePage() {
                                         {sesion.estado === 'completada' && (
                                             <div className="pt-2 mt-2 border-t space-y-3">
                                                 <div className="flex gap-4 mt-1 text-xs">
-                                                    <span>Dolor Inicial: {sesion.dolorInicial}/10</span>
-                                                    <span>Dolor Final: {sesion.dolorFinal}/10</span>
+                                                    <span>Dolor Inicial: {sesion.dolorInicial ?? 'N/A'}/10</span>
+                                                    <span>Dolor Final: {sesion.dolorFinal ?? 'N/A'}/10</span>
                                                 </div>
                                                 {sesion.observacionesObjetivas && <div><p className="font-semibold text-foreground">Observaciones Objetivas:</p><p className="whitespace-pre-wrap">{sesion.observacionesObjetivas}</p></div>}
                                                 {sesion.tecnicasAplicadas && <div><p className="font-semibold text-foreground">Técnicas Aplicadas:</p><p className="whitespace-pre-wrap">{sesion.tecnicasAplicadas}</p></div>}
@@ -350,7 +369,19 @@ export default function ExpedienteDetallePage() {
                                             <Button variant="ghost" size="icon" className="ml-4 self-center"><MoreHorizontal className="h-4 w-4"/></Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => {setSelectedSesion(sesion); setIsProgresoModalOpen(true);}}><CheckCircle className="mr-2 h-4 w-4" />Marcar como Completada</DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => {
+                                                setSelectedSesion(sesion); 
+                                                // Pre-fill form if needed, e.g., for editing
+                                                progresoForm.reset({
+                                                    dolorInicial: sesion.dolorInicial ?? 5,
+                                                    dolorFinal: sesion.dolorFinal ?? 5,
+                                                    notasTerapeuta: sesion.notasTerapeuta ?? "",
+                                                    observacionesObjetivas: sesion.observacionesObjetivas ?? "",
+                                                    tecnicasAplicadas: sesion.tecnicasAplicadas ?? "",
+                                                    planProximaSesion: sesion.planProximaSesion ?? "",
+                                                });
+                                                setIsProgresoModalOpen(true);
+                                            }}><CheckCircle className="mr-2 h-4 w-4" />Marcar como Completada</DropdownMenuItem>
                                             <DropdownMenuItem disabled><Clock className="mr-2 h-4 w-4" />Reagendar</DropdownMenuItem>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
@@ -439,7 +470,7 @@ export default function ExpedienteDetallePage() {
                                 <FormLabel>Dolor inicial del paciente (0-10)</FormLabel>
                                 <FormControl>
                                     <>
-                                     <Slider defaultValue={[5]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
+                                     <Slider value={[field.value]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
                                      <p className="text-center font-bold text-lg">{field.value}</p>
                                     </>
                                 </FormControl>
@@ -450,7 +481,7 @@ export default function ExpedienteDetallePage() {
                                 <FormLabel>Dolor final del paciente (0-10)</FormLabel>
                                 <FormControl>
                                     <>
-                                     <Slider defaultValue={[5]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
+                                     <Slider value={[field.value]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
                                      <p className="text-center font-bold text-lg">{field.value}</p>
                                     </>
                                 </FormControl>
@@ -540,5 +571,7 @@ export default function ExpedienteDetallePage() {
     </div>
   );
 }
+
+    
 
     
