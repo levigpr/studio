@@ -38,7 +38,7 @@ export interface Sesion {
   ubicacion?: string;
   nota?: string;
   creadaEn: Timestamp;
-  notasTerapeuta?: string; // Para después de la sesión
+  notasTerapeuta?: string;
   dolorInicial?: number;
   dolorFinal?: number;
 }
