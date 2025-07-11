@@ -18,6 +18,7 @@ initializeApp();
 
 // Create user callable function
 export const createUser = onCall(async (request) => {
+  // Only authenticated therapists can call this function
   if (request.auth?.token.rol !== "terapeuta") {
     throw new Error("Permission denied: only therapists can create users.");
   }
@@ -33,6 +34,11 @@ export const createUser = onCall(async (request) => {
       email,
       displayName: nombre,
     });
+
+    // CRITICAL FIX: Set custom claim for role-based access control
+    await getAuth().setCustomUserClaims(userRecord.uid, {rol});
+    logger.info(`Successfully set custom claim 'rol: ${rol}' for user ${userRecord.uid}`);
+
 
     const userProfileData: any = {
       uid: userRecord.uid,
@@ -54,13 +60,10 @@ export const createUser = onCall(async (request) => {
       };
     }
     
-    // Set custom claim for role-based access control
-    await getAuth().setCustomUserClaims(userRecord.uid, {rol});
-
     await getFirestore().collection("usuarios").doc(userRecord.uid)
       .set(userProfileData);
 
-    logger.info(`Successfully created user: ${userRecord.uid}`);
+    logger.info(`Successfully created user profile in Firestore: ${userRecord.uid}`);
     return {uid: userRecord.uid};
   } catch (error) {
     logger.error("Error creating new user:", error);
