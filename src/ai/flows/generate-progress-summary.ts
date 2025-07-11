@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Flow para analizar el auto-reporte de un paciente y generar un resumen para el terapeuta.
@@ -11,12 +12,12 @@ import { ai } from '@/ai/genkit';
 import type { Avance } from '@/types';
 import { z } from 'zod';
 
-export const ProgressSummaryInputSchema = z.object({
+const ProgressSummaryInputSchema = z.object({
     avance: z.any().describe("El objeto completo del avance del paciente a analizar."),
 });
 export type ProgressSummaryInput = z.infer<typeof ProgressSummaryInputSchema>;
 
-export const ProgressSummaryOutputSchema = z.object({
+const ProgressSummaryOutputSchema = z.object({
   resumen: z.string().describe("Resumen conciso del estado general del paciente."),
   puntosClave: z.array(z.string()).describe("Lista de 3 a 5 puntos clave o alertas para el terapeuta."),
   sugerencia: z.string().describe("Una sugerencia de acción o tema a discutir en la próxima sesión."),
