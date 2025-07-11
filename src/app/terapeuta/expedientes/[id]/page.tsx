@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill, Pencil } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -167,6 +167,7 @@ export default function ExpedienteDetallePage() {
 
   const fetchExpedienteData = useCallback(async () => {
     if (!expedienteId || !user) return;
+    setLoading(true);
     try {
         const expedienteDocRef = doc(db, "expedientes", expedienteId);
         const expedienteDocSnap = await getDoc(expedienteDocRef);
@@ -185,13 +186,11 @@ export default function ExpedienteDetallePage() {
               planTratamiento: expData.planTratamiento || "",
           });
 
-          // Fetch patient profile if not already loaded or if it's a different patient
-          if (!paciente || paciente.uid !== expData.pacienteUid) {
-              const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
-              const pacienteDocSnap = await getDoc(pacienteDocRef);
-              if (pacienteDocSnap.exists()) {
-                setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
-              }
+          // Fetch patient profile
+          const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
+          const pacienteDocSnap = await getDoc(pacienteDocRef);
+          if (pacienteDocSnap.exists()) {
+            setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
           }
           
           await fetchRelatedData(expedienteId);
@@ -203,17 +202,14 @@ export default function ExpedienteDetallePage() {
     } catch(error) {
         console.error("Error fetching main data:", error);
         toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
+    } finally {
+        setLoading(false);
     }
-  }, [expedienteId, user, toast, router, expedienteForm, paciente, fetchRelatedData]);
+  }, [expedienteId, user, toast, router, expedienteForm, fetchRelatedData]);
 
 
   useEffect(() => {
-    async function initialLoad() {
-        setLoading(true);
-        await fetchExpedienteData();
-        setLoading(false);
-    }
-    initialLoad();
+    fetchExpedienteData();
   }, [fetchExpedienteData]);
 
   async function onAgendarSesion(values: z.infer<typeof sesionFormSchema>) {
@@ -395,7 +391,7 @@ export default function ExpedienteDetallePage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Editar Evaluación Clínica</DialogTitle>
-                        <DialogDescription>Actualiza el diagnóstico, los objetivos y el plan de tratamiento del paciente.</DialogDescription>
+                        <AlertDialogDescription>Actualiza el diagnóstico, los objetivos y el plan de tratamiento del paciente.</AlertDialogDescription>
                     </DialogHeader>
                     <Form {...expedienteForm}>
                         <form onSubmit={expedienteForm.handleSubmit(onGuardarExpediente)} className="space-y-4">
@@ -504,7 +500,7 @@ export default function ExpedienteDetallePage() {
         <CardContent>
             <Tabs defaultValue="sesiones">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="sesiones"><Calendar className="mr-2 h-4 w-4"/>Sesiones Clínicas</TabsTrigger>
+                    <TabsTrigger value="sesiones"><Calendar className="mr-2 h-4 w-4"/>Sesiones</TabsTrigger>
                     <TabsTrigger value="avances"><Activity className="mr-2 h-4 w-4"/>Auto-reportes del Paciente</TabsTrigger>
                 </TabsList>
                 <TabsContent value="sesiones" className="mt-4">
@@ -636,7 +632,7 @@ export default function ExpedienteDetallePage() {
       {/* Modal para registrar progreso de sesión */}
       <Dialog open={isProgresoModalOpen} onOpenChange={setIsProgresoModalOpen}>
         <DialogContent className="sm:max-w-2xl">
-            <DialogHeader><DialogTitle>Registrar Progreso de la Sesión</DialogTitle><DialogDescription>Añade los detalles clínicos observados durante la sesión.</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Registrar Progreso de la Sesión</DialogTitle><AlertDialogDescription>Añade los detalles clínicos observados durante la sesión.</AlertDialogDescription></DialogHeader>
             <Form {...progresoForm}>
                 <form onSubmit={progresoForm.handleSubmit(onCompletarSesion)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                     <div className="grid grid-cols-2 gap-4">
