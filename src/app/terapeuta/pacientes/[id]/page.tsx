@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,7 +16,7 @@ function InfoCard({ title, value, icon }: { title: string; value?: string; icon:
       <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
         {icon} {title}
       </h4>
-      <p className="text-base">{value || "No especificado"}</p>
+      <p className="text-base whitespace-pre-wrap">{value || "No especificado"}</p>
     </div>
   );
 }
