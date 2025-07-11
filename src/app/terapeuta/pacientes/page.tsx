@@ -8,10 +8,10 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/auth-context";
 import type { UserProfile } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, PlusCircle, Users, ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2, Users, ChevronRight } from "lucide-react";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -41,6 +41,7 @@ export default function PacientesPage() {
   }, [user]);
 
   const getInitials = (name: string) => {
+    if (!name) return '';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
@@ -48,10 +49,7 @@ export default function PacientesPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Users /> Pacientes</h1>
-        <Button onClick={() => router.push('/terapeuta/pacientes/crear')}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Añadir Paciente
-        </Button>
+        {/* El botón de crear paciente fue eliminado según el nuevo flujo */}
       </div>
 
       <Card>
@@ -77,7 +75,6 @@ export default function PacientesPage() {
                     <TableRow key={paciente.uid} className="cursor-pointer" onClick={() => router.push(`/terapeuta/pacientes/${paciente.uid}`)}>
                       <TableCell>
                         <Avatar>
-                          {/* En una app real, aquí iría la foto del paciente */}
                           <AvatarFallback>{getInitials(paciente.nombre)}</AvatarFallback>
                         </Avatar>
                       </TableCell>
@@ -96,7 +93,7 @@ export default function PacientesPage() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
-                      No se encontraron pacientes.
+                      No se encontraron pacientes. Los pacientes deben registrarse por su cuenta.
                     </TableCell>
                   </TableRow>
                 )}

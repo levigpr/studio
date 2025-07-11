@@ -1,41 +1,77 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+  
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
+    // Un terapeuta es un usuario con el claim 'terapeuta'
     function isTherapist() {
       return request.auth.token.rol == 'terapeuta';
     }
 
     match /usuarios/{userId} {
+      // Creación: cualquiera puede crear un perfil, pero debe ser el dueño
+      allow create: if isOwner(userId);
+      // Lectura: un usuario puede leer su propio perfil, o un terapeuta puede leer cualquier perfil
       allow read: if isOwner(userId) || isTherapist();
+      // Listar: solo los terapeutas pueden listar los usuarios (para seleccionar pacientes)
       allow list: if isTherapist();
-      allow create: if request.resource.data.rol == 'paciente' || isTherapist();
+      // Actualización: solo el dueño puede actualizar su perfil
       allow update: if isOwner(userId);
+      // Borrado: deshabilitado por seguridad
+      allow delete: if false;
     }
-    
+
     match /expedientes/{expedienteId} {
-      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
-      allow create, update: if isTherapist();
+      // Lectura: el paciente dueño o cualquier terapeuta pueden leerlo
+      allow read: if isOwner(resource.data.pacienteUid) || isTherapist();
+      // Listar: solo los terapeutas pueden listar expedientes
+      allow list: if isTherapist();
+      // Creación: solo un terapeuta puede crear un expediente, y debe ser el terapeuta asignado
+      allow create: if isTherapist() && isOwner(request.resource.data.terapeutaUid);
+      // Actualización: solo el terapeuta asignado puede actualizarlo
+      allow update: if isTherapist() && isOwner(resource.data.terapeutaUid);
+       // Borrado: deshabilitado por seguridad
+      allow delete: if false;
     }
-    
+
     match /sesiones/{sesionId} {
-      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
+      // Lectura: el paciente dueño o el terapeuta asignado pueden leerlo
+      allow read: if isOwner(resource.data.pacienteUid) || isOwner(resource.data.terapeutaUid) || isTherapist();
+      // Listar: el paciente o el terapeuta pueden listar sus propias sesiones
+      allow list: if isTherapist() || (request.query.where.pacienteUid == request.auth.uid);
+      // Creación: solo un terapeuta puede crear sesiones
+      allow create: if isTherapist();
+      // Actualización: solo el terapeuta puede actualizar una sesión
+      allow update: if isTherapist();
+       // Borrado: deshabilitado por seguridad
+      allow delete: if false;
+    }
+
+    match /galerias/{galeriaId} {
+      // Lectura: si eres un terapeuta o si eres un paciente asignado a la galería
+      allow read: if isTherapist() || request.auth.uid in resource.data.pacientesAsignados;
+      // Listar: si eres terapeuta o paciente
+      allow list: if request.auth != null;
+      // Creación y actualización: solo terapeutas
       allow create, update: if isTherapist();
+       // Borrado: deshabilitado por seguridad
+      allow delete: if false;
     }
     
     match /avances/{avanceId} {
-      allow read: if isTherapist() || request.auth.uid == resource.data.pacienteUid;
-      allow create: if isOwner(request.resource.data.pacienteUid);
-    }
-    
-    match /galerias/{galeriaId} {
-      allow read: if isTherapist() || request.auth.uid in resource.data.pacientesAsignados;
-      allow create, update: if isTherapist();
+        // Lectura: El terapeuta asignado o el paciente que lo registró
+        allow read: if isTherapist() || isOwner(resource.data.pacienteUid);
+        // Listar: Terapeutas o el paciente dueño
+        allow list: if isTherapist() || (request.query.where.pacienteUid == request.auth.uid);
+        // Creación: Solo el paciente puede registrar su propio avance
+        allow create: if isOwner(request.resource.data.pacienteUid);
+         // Borrado: deshabilitado por seguridad
+        allow delete: if false;
     }
   }
 }
