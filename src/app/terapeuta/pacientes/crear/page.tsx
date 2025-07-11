@@ -20,6 +20,8 @@ import { Loader2 } from "lucide-react";
 const functions = getFunctions(auth.app);
 const createUser = httpsCallable(functions, 'createUser');
 
+// Para el terapeuta, la contraseña no es necesaria, la función de nube no la pedirá
+// si el que llama es un terapeuta. El paciente establecerá su contraseña después.
 const formSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("Por favor, introduce un email válido."),
