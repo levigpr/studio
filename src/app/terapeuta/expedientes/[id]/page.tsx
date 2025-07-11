@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc, getDocs, collection, query, where, addDoc, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Expediente, UserProfile, Sesion } from "@/types";
+import type { Expediente, UserProfile, Sesion, Avance } from "@/types";
 import { useAuth } from "@/context/auth-context";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock } from "lucide-react";
+import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -30,6 +30,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 
 const sesionFormSchema = z.object({
   fecha: z.date({
@@ -61,6 +63,7 @@ export default function ExpedienteDetallePage() {
   const [expediente, setExpediente] = useState<Expediente | null>(null);
   const [paciente, setPaciente] = useState<UserProfile | null>(null);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
+  const [avances, setAvances] = useState<Avance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,19 +88,26 @@ export default function ExpedienteDetallePage() {
 
   const modalidad = sesionForm.watch("modalidad");
   
-  const fetchSesiones = async () => {
+  const fetchRelatedData = async () => {
       if (!expedienteId) return;
       try {
+        // Fetch Sesiones
         const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId));
         const sesionesSnapshot = await getDocs(sesionesQuery);
         const sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
-        
         sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
-
         setSesiones(sesionesList);
+
+        // Fetch Avances
+        const avancesQuery = query(collection(db, "avances"), where("expedienteId", "==", expedienteId));
+        const avancesSnapshot = await getDocs(avancesQuery);
+        const avancesList = avancesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Avance));
+        avancesList.sort((a, b) => b.fechaRegistro.toMillis() - a.fechaRegistro.toMillis());
+        setAvances(avancesList);
+
       } catch (error) {
-          console.error("Error fetching sessions:", error);
-          toast({ title: "Error", description: "No se pudieron cargar las sesiones.", variant: "destructive" });
+          console.error("Error fetching related data:", error);
+          toast({ title: "Error", description: "No se pudieron cargar las sesiones o avances.", variant: "destructive" });
       }
   }
 
@@ -119,7 +129,7 @@ export default function ExpedienteDetallePage() {
           if (pacienteDocSnap.exists()) {
             setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
           }
-          await fetchSesiones();
+          await fetchRelatedData();
         } else {
           router.push('/terapeuta/expedientes');
         }
@@ -149,7 +159,7 @@ export default function ExpedienteDetallePage() {
         creadaEn: serverTimestamp(),
       });
 
-      await fetchSesiones();
+      await fetchRelatedData();
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
       sesionForm.reset({ modalidad: 'presencial', fecha: undefined, ubicacion: '', nota: '' });
       setIsModalOpen(false);
@@ -171,7 +181,7 @@ export default function ExpedienteDetallePage() {
             dolorFinal: values.dolorFinal,
             notasTerapeuta: values.notasTerapeuta,
         });
-        await fetchSesiones();
+        await fetchRelatedData();
         toast({ title: "Éxito", description: "La sesión ha sido marcada como completada." });
         setIsProgresoModalOpen(false);
         progresoForm.reset();
@@ -187,7 +197,7 @@ export default function ExpedienteDetallePage() {
     try {
         const sesionRef = doc(db, "sesiones", sesionId);
         await updateDoc(sesionRef, { estado: "cancelada" });
-        await fetchSesiones();
+        await fetchRelatedData();
         toast({ title: "Éxito", description: "La sesión ha sido cancelada." });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo cancelar la sesión.", variant: "destructive" });
@@ -204,6 +214,17 @@ export default function ExpedienteDetallePage() {
       default: return "outline";
     }
   };
+
+  const getMoodIcon = (mood: Avance['estadoAnimo']) => {
+    switch (mood) {
+        case 'muy-bien': return <Smile className="text-green-500" />;
+        case 'bien': return <Smile className="text-lime-500" />;
+        case 'regular': return <Meh className="text-yellow-500" />;
+        case 'mal': return <Frown className="text-orange-500" />;
+        case 'muy-mal': return <Frown className="text-red-500" />;
+        default: return <Meh />;
+    }
+  }
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!expediente || !paciente) return <p>No se pudo encontrar la información del expediente.</p>;
@@ -222,7 +243,7 @@ export default function ExpedienteDetallePage() {
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2"><Calendar/>Sesiones y Avances</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Calendar/>Historial del Paciente</CardTitle>
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild><Button><PlusCircle className="mr-2 h-4 w-4"/> Agendar Sesión</Button></DialogTrigger>
               <DialogContent className="sm:max-w-[480px]">
@@ -252,60 +273,111 @@ export default function ExpedienteDetallePage() {
             </Dialog>
         </CardHeader>
         <CardContent>
-            {sesiones.length > 0 ? (
-                <ul className="space-y-4">
-                    {sesiones.map(sesion => (
-                        <li key={sesion.id} className="flex justify-between items-start p-4 rounded-lg border bg-muted/20">
-                           <div className="flex-1">
-                             <div className="flex justify-between items-center mb-2">
-                                <p className="font-semibold">{format(sesion.fecha.toDate(), "eeee, dd 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
-                                <Badge variant={getBadgeVariant(sesion.estado)} className="capitalize">{sesion.estado}</Badge>
-                             </div>
-                             <div className="text-sm text-muted-foreground space-y-1">
-                                <p><strong className="font-medium text-foreground">Modalidad:</strong> <span className="capitalize">{sesion.modalidad}</span></p>
-                                {sesion.ubicacion && <p><strong className="font-medium text-foreground">Ubicación:</strong> {sesion.ubicacion}</p>}
-                                {sesion.nota && <p><strong className="font-medium text-foreground">Nota Previa:</strong> {sesion.nota}</p>}
-                                {sesion.estado === 'completada' && sesion.notasTerapeuta && (
-                                    <div className="pt-2 mt-2 border-t">
-                                        <p className="font-semibold text-foreground">Notas de Progreso:</p>
-                                        <p className="whitespace-pre-wrap">{sesion.notasTerapeuta}</p>
-                                        <div className="flex gap-4 mt-1 text-xs">
-                                            <span>Dolor Inicial: {sesion.dolorInicial}/10</span>
-                                            <span>Dolor Final: {sesion.dolorFinal}/10</span>
+            <Tabs defaultValue="sesiones">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="sesiones"><Calendar className="mr-2 h-4 w-4"/>Sesiones Clínicas</TabsTrigger>
+                    <TabsTrigger value="avances"><Activity className="mr-2 h-4 w-4"/>Auto-reportes del Paciente</TabsTrigger>
+                </TabsList>
+                <TabsContent value="sesiones" className="mt-4">
+                     {sesiones.length > 0 ? (
+                        <ul className="space-y-4">
+                            {sesiones.map(sesion => (
+                                <li key={sesion.id} className="flex justify-between items-start p-4 rounded-lg border bg-muted/20">
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="font-semibold">{format(sesion.fecha.toDate(), "eeee, dd 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
+                                        <Badge variant={getBadgeVariant(sesion.estado)} className="capitalize">{sesion.estado}</Badge>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground space-y-1">
+                                        <p><strong className="font-medium text-foreground">Modalidad:</strong> <span className="capitalize">{sesion.modalidad}</span></p>
+                                        {sesion.ubicacion && <p><strong className="font-medium text-foreground">Ubicación:</strong> {sesion.ubicacion}</p>}
+                                        {sesion.nota && <p><strong className="font-medium text-foreground">Nota Previa:</strong> {sesion.nota}</p>}
+                                        {sesion.estado === 'completada' && sesion.notasTerapeuta && (
+                                            <div className="pt-2 mt-2 border-t">
+                                                <p className="font-semibold text-foreground">Notas de Progreso:</p>
+                                                <p className="whitespace-pre-wrap">{sesion.notasTerapeuta}</p>
+                                                <div className="flex gap-4 mt-1 text-xs">
+                                                    <span>Dolor Inicial: {sesion.dolorInicial}/10</span>
+                                                    <span>Dolor Final: {sesion.dolorFinal}/10</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {sesion.estado === 'agendada' && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="ml-4 self-center"><MoreHorizontal className="h-4 w-4"/></Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => {setSelectedSesion(sesion); setIsProgresoModalOpen(true);}}><CheckCircle className="mr-2 h-4 w-4" />Marcar como Completada</DropdownMenuItem>
+                                            <DropdownMenuItem disabled><Clock className="mr-2 h-4 w-4" />Reagendar</DropdownMenuItem>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}><XCircle className="mr-2 h-4 w-4" />Cancelar Sesión</DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cerrar</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => onCancelarSesion(sesion.id)} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Confirmar Cancelación</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg"><p>No hay sesiones agendadas para este paciente.</p></div>
+                    )}
+                </TabsContent>
+                <TabsContent value="avances" className="mt-4">
+                     {avances.length > 0 ? (
+                        <ul className="space-y-4">
+                            {avances.map(avance => (
+                                <li key={avance.id} className="p-4 rounded-lg border bg-muted/20">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="font-semibold">{format(avance.fechaRegistro.toDate(), "eeee, dd 'de' MMMM, yyyy", { locale: es })}</p>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            {getMoodIcon(avance.estadoAnimo)}
+                                            <span className="capitalize">{avance.estadoAnimo?.replace('-', ' ')}</span>
                                         </div>
                                     </div>
-                                )}
-                             </div>
-                           </div>
-                           {sesion.estado === 'agendada' && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="ml-4 self-center"><MoreHorizontal className="h-4 w-4"/></Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => {setSelectedSesion(sesion); setIsProgresoModalOpen(true);}}><CheckCircle className="mr-2 h-4 w-4" />Marcar como Completada</DropdownMenuItem>
-                                    <DropdownMenuItem disabled><Clock className="mr-2 h-4 w-4" />Reagendar</DropdownMenuItem>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                           <DropdownMenuItem onSelect={(e) => e.preventDefault()}><XCircle className="mr-2 h-4 w-4" />Cancelar Sesión</DropdownMenuItem>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</AlertDialogDescription></AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cerrar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => onCancelarSesion(sesion.id)} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Confirmar Cancelación</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                           )}
-                        </li>
-                    ))}
-                </ul>
-            ) : (
-                 <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg"><p>No hay sesiones agendadas para este paciente.</p></div>
-            )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                                        <div className="space-y-1">
+                                            <p className="font-medium">Dolor</p>
+                                            <p className="text-muted-foreground">Inicio: {avance.dolorInicial}/10, Final: {avance.dolorFinal}/10 en "{avance.ubicacionDolor}"</p>
+                                        </div>
+                                         <div className="space-y-1">
+                                            <p className="font-medium">Adherencia</p>
+                                            <p className="text-muted-foreground">{avance.diasEjercicio}/7 días de ejercicio. Dificultad: {avance.ejerciciosDificiles || "Ninguna"}</p>
+                                        </div>
+                                         <div className="space-y-1">
+                                            <p className="font-medium">Movilidad y Fatiga</p>
+                                            <p className="text-muted-foreground">Movilidad: "{avance.movilidadPercibida}". Fatiga: {avance.fatiga}/10</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="font-medium">Motivación</p>
+                                            <p className="text-muted-foreground">{avance.motivacion}/10</p>
+                                        </div>
+                                        {avance.comentarioPaciente && (
+                                            <div className="space-y-1 md:col-span-2">
+                                                <p className="font-medium">Comentario Adicional</p>
+                                                <p className="text-muted-foreground whitespace-pre-wrap">{avance.comentarioPaciente}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg"><p>El paciente aún no ha registrado ningún auto-reporte.</p></div>
+                    )}
+                </TabsContent>
+            </Tabs>
         </CardContent>
       </Card>
       

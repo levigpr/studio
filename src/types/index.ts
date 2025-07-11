@@ -17,6 +17,7 @@ export interface UserProfile {
   rol: "terapeuta" | "paciente";
   fechaRegistro: Timestamp;
   informacionMedica?: InformacionMedica;
+  terapeutaUid?: string; // Asignado al paciente
 }
 
 export interface Expediente {
@@ -57,4 +58,34 @@ export interface Galeria {
   creadaPor: string; // terapeutaUid
   pacientesAsignados: string[]; // array of pacienteUid
   fechaCreacion: Timestamp;
+}
+
+export interface Avance {
+    id: string;
+    pacienteUid: string;
+    terapeutaUid: string;
+    expedienteId: string;
+    fechaRegistro: Timestamp;
+    registradoPor: string; // UID del usuario
+    tipoRegistro: "auto" | "sesion";
+
+    // Tracking del Dolor
+    dolorInicial?: number;
+    dolorFinal?: number;
+    ubicacionDolor?: string;
+
+    // Adherencia al Tratamiento
+    ejerciciosRealizados?: string;
+    diasEjercicio?: number;
+    ejerciciosDificiles?: string;
+
+    // Funcionalidad y Movilidad
+    movilidadPercibida?: string;
+    fatiga?: number;
+    limitacionesFuncionales?: string;
+
+    // Emocional y Motivacional
+    estadoAnimo?: 'muy-bien' | 'bien' | 'regular' | 'mal' | 'muy-mal';
+    motivacion?: number;
+    comentarioPaciente?: string;
 }

@@ -10,13 +10,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Skeleton } from "@/components/ui/skeleton";
 import YoutubeEmbed from "@/components/youtube-embed";
-import { Film, FileText, Calendar, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Film, FileText, Calendar, Clock, CheckCircle, XCircle, PlusCircle, PencilRuler } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 export default function PacientePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [expediente, setExpediente] = useState<Expediente | null>(null);
   const [galerias, setGalerias] = useState<Galeria[]>([]);
   const [sesiones, setSesiones] = useState<Sesion[]>([]);
@@ -100,7 +103,14 @@ export default function PacientePage() {
 
   return (
     <div className="container mx-auto max-w-4xl py-8">
-      <h1 className="text-3xl font-bold mb-8 font-headline">Panel del Paciente</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold font-headline">Panel del Paciente</h1>
+        <Button onClick={() => router.push('/paciente/registrar-avance')} disabled={!expediente}>
+            <PencilRuler className="mr-2 h-4 w-4" />
+            Registrar mi Avance
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 gap-8">
         <Card>
           <CardHeader>
@@ -203,5 +213,3 @@ export default function PacientePage() {
     </div>
   );
 }
-
-    
