@@ -30,8 +30,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!auth || !db) {
       setLoading(false);
-      // We can't do anything without firebase, so just let the page render.
-      // It will likely show login/signup pages correctly.
       return;
     }
 
@@ -45,19 +43,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const profile = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
           setUser(firebaseUser);
           setUserProfile(profile);
+          
+          const isAuthPage = pathname === '/' || pathname.startsWith('/signup') || pathname.startsWith('/login');
 
-          // Redirect if on an auth page
-          const isAuthPage = pathname === '/' || pathname.startsWith('/signup');
           if (profile.rol === "terapeuta" && isAuthPage) {
             router.replace("/terapeuta");
           } else if (profile.rol === "paciente" && isAuthPage) {
             router.replace("/paciente");
           } else {
-             setLoading(false);
+            setLoading(false);
           }
         } else {
-          // User exists in Auth but not in Firestore, treat as logged out
-          // You might want to redirect to a profile setup page here in the future
+          // User in Auth but not Firestore, log them out
+          await auth.signOut();
           setUser(null);
           setUserProfile(null);
           setLoading(false);
@@ -67,7 +65,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         setUserProfile(null);
         
-        // If on a protected page, redirect to home
         const isProtectedRoute = pathname.startsWith('/terapeuta') || pathname.startsWith('/paciente');
         if (isProtectedRoute) {
           router.replace('/');
@@ -80,6 +77,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, [pathname, router]);
 
+  // While the initial auth state is being determined, show a loader.
+  // This prevents content flashing and ensures redirection logic runs first.
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
@@ -89,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading }}>
+    <AuthContext.Provider value={{ user, userProfile, loading: false }}>
       {children}
     </AuthContext.Provider>
   );
