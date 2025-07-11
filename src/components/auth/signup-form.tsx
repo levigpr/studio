@@ -7,9 +7,10 @@ import * as z from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,12 +32,13 @@ export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { user: authenticatedUser } = useAuth(); // Get user from context
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       nombre: "",
-      email: "",
+      email: authenticatedUser?.email || "", // Pre-fill email if user exists
       password: "",
     },
   });
@@ -44,9 +46,21 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
+      let user;
+      // If a user is already authenticated (but has no profile), we just create the profile.
+      // Otherwise, we create a new user.
+      if (authenticatedUser) {
+        user = authenticatedUser;
+        // Optionally update their name in auth profile as well
+        if (user.displayName !== values.nombre) {
+            await updateProfile(user, { displayName: values.nombre });
+        }
+      } else {
+         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+         user = userCredential.user;
+      }
+      
+      // Create the user document in Firestore
       await setDoc(doc(db, "usuarios", user.uid), {
         uid: user.uid,
         nombre: values.nombre,
@@ -57,9 +71,11 @@ export function SignupForm() {
       
       toast({
         title: "¡Registro exitoso!",
-        description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
+        description: "Tu cuenta ha sido configurada. Serás redirigido.",
       });
-      router.push("/");
+
+      // The AuthContext will handle the redirection automatically on state change.
+      // We don't need to push the router here.
 
     } catch (error: any) {
       console.error(error);
@@ -84,8 +100,12 @@ export function SignupForm() {
             <div className="flex justify-center items-center mb-4">
                 <HeartPulse className="h-12 w-12 text-primary" />
             </div>
-          <CardTitle className="font-headline text-2xl">Crea tu cuenta</CardTitle>
-          <CardDescription>Únete a FisioApp para empezar</CardDescription>
+          <CardTitle className="font-headline text-2xl">
+            {authenticatedUser ? "Completa tu perfil" : "Crea tu cuenta"}
+            </CardTitle>
+          <CardDescription>
+            {authenticatedUser ? "Añade tus datos para continuar." : "Únete a FisioApp para empezar"}
+            </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -110,25 +130,28 @@ export function SignupForm() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="tu@email.com" {...field} />
+                      <Input type="email" placeholder="tu@email.com" {...field} disabled={!!authenticatedUser} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contraseña</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Hide password field if user is already authenticated */}
+              {!authenticatedUser && (
+                <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Contraseña</FormLabel>
+                        <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="rol"
@@ -152,16 +175,18 @@ export function SignupForm() {
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Cuenta
+                {authenticatedUser ? "Guardar Perfil" : "Crear Cuenta"}
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm">
-            ¿Ya tienes una cuenta?{" "}
-            <Link href="/" className="underline">
-              Inicia sesión
-            </Link>
-          </div>
+          {!authenticatedUser && (
+            <div className="mt-4 text-center text-sm">
+                ¿Ya tienes una cuenta?{" "}
+                <Link href="/" className="underline">
+                Inicia sesión
+                </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
     </main>

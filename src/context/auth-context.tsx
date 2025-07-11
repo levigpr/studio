@@ -34,7 +34,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true); // Start loading when auth state changes
       if (firebaseUser) {
         // User is logged in
         const docRef = doc(db, "usuarios", firebaseUser.uid);
@@ -53,10 +52,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             router.replace("/paciente");
           }
         } else {
-          // User in Auth but not Firestore, log them out
-          await auth.signOut();
-          setUser(null);
+          // User in Auth but not Firestore. Instead of logging out,
+          // redirect to signup to complete profile.
+          setUser(firebaseUser);
           setUserProfile(null);
+          if (pathname !== '/signup') {
+            router.replace('/signup');
+          }
         }
       } else {
         // User is not logged in
@@ -68,15 +70,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           router.replace('/');
         }
       }
-      // This ensures the loading spinner is turned off in all cases
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, [pathname, router]);
-
-  // While the initial auth state is being determined, show a loader.
-  // This prevents content flashing and ensures redirection logic runs first.
+  
+  // This is the correct pattern. We show the children only when loading is false.
+  // The useEffect handles all redirection logic.
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
@@ -84,6 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
+
 
   return (
     <AuthContext.Provider value={{ user, userProfile, loading: false }}>
