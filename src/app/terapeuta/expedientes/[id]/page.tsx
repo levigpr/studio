@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -185,7 +185,7 @@ export default function ExpedienteDetallePage() {
               planTratamiento: expData.planTratamiento || "",
           });
 
-          // Fetch patient profile if not already loaded
+          // Fetch patient profile if not already loaded or if it's a different patient
           if (!paciente || paciente.uid !== expData.pacienteUid) {
               const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
               const pacienteDocSnap = await getDoc(pacienteDocRef);
@@ -563,7 +563,7 @@ export default function ExpedienteDetallePage() {
                                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}><XCircle className="mr-2 h-4 w-4" />Cancelar Sesión</DropdownMenuItem>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><DialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</DialogDescription></AlertDialogHeader>
+                                                    <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</AlertDialogDescription></AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cerrar</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => onCancelarSesion(sesion.id)} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Confirmar Cancelación</AlertDialogAction>
@@ -754,7 +754,7 @@ export default function ExpedienteDetallePage() {
                         <Sparkles className="text-primary"/>
                         Análisis del Avance con IA
                     </AlertDialogTitle>
-                    <DialogDescription>Este es un resumen generado por IA para ayudarte a identificar rápidamente los puntos clave del reporte del paciente.</DialogDescription>
+                    <AlertDialogDescription>Este es un resumen generado por IA para ayudarte a identificar rápidamente los puntos clave del reporte del paciente.</AlertDialogDescription>
                 </AlertDialogHeader>
                 {isAiLoading ? (
                     <div className="flex items-center justify-center p-8">
