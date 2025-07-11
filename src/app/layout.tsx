@@ -1,12 +1,23 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AuthProvider } from '@/context/auth-context';
+import { AuthProvider, useAuth } from '@/context/auth-context';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
   title: 'FisioApp',
   description: 'App de fisioterapia para terapeutas y pacientes',
 };
+
+function AppContent({ children }: { children: React.ReactNode }) {
+  // This component now exists inside AuthProvider's scope
+  // But we don't need to use the hook here, it's just for structure
+  return (
+    <>
+      {children}
+      <Toaster />
+    </>
+  );
+}
 
 export default function RootLayout({
   children,
@@ -22,9 +33,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          {children}
-          <Toaster />
+          <AppContent>{children}</AppContent>
         </AuthProvider>
       </body>
     </html>
   );
+}

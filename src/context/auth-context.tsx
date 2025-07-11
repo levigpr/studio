@@ -28,40 +28,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!db) {
-      console.error("Firestore is not initialized. Cannot proceed with auth state changes.");
+    if (!auth || !db) {
       setLoading(false);
+      // We can't do anything without firebase, so just let the page render.
+      // It will likely show login/signup pages correctly.
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        setUser(firebaseUser);
+        // User is logged in
         const docRef = doc(db, "usuarios", firebaseUser.uid);
         const docSnap = await getDoc(docRef);
 
         if (docSnap.exists()) {
           const profile = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+          setUser(firebaseUser);
           setUserProfile(profile);
 
-          const isAuthPage = pathname === '/' || pathname.startsWith('/signup') || pathname.startsWith('/login');
-          
+          // Redirect if on an auth page
+          const isAuthPage = pathname === '/' || pathname.startsWith('/signup');
           if (profile.rol === "terapeuta" && isAuthPage) {
             router.replace("/terapeuta");
           } else if (profile.rol === "paciente" && isAuthPage) {
             router.replace("/paciente");
           } else {
-            setLoading(false);
+             setLoading(false);
           }
         } else {
-          // User exists in Auth but not Firestore
+          // User exists in Auth but not in Firestore, treat as logged out
+          // You might want to redirect to a profile setup page here in the future
+          setUser(null);
           setUserProfile(null);
-          // Optional: redirect to a profile setup page or handle as an error
-           setLoading(false);
+          setLoading(false);
         }
       } else {
+        // User is not logged in
         setUser(null);
         setUserProfile(null);
+        
+        // If on a protected page, redirect to home
         const isProtectedRoute = pathname.startsWith('/terapeuta') || pathname.startsWith('/paciente');
         if (isProtectedRoute) {
           router.replace('/');
@@ -73,10 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => unsubscribe();
   }, [pathname, router]);
-  
-  // While initial loading is true, we show a full-screen loader.
-  // The router inside the useEffect will handle redirection, and then setLoading(false)
-  // will unmount this loader and show the children.
+
   if (loading) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center">
@@ -85,8 +88,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   }
 
-
-  return <>{children}</>;
+  return (
+    <AuthContext.Provider value={{ user, userProfile, loading }}>
+      {children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => useContext(AuthContext);
