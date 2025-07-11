@@ -34,6 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true); // Start loading when auth state changes
       if (firebaseUser) {
         // User is logged in
         const docRef = doc(db, "usuarios", firebaseUser.uid);
@@ -44,21 +45,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(firebaseUser);
           setUserProfile(profile);
           
-          const isAuthPage = pathname === '/' || pathname.startsWith('/signup') || pathname.startsWith('/login');
+          const isAuthPage = pathname === '/' || pathname.startsWith('/signup');
 
           if (profile.rol === "terapeuta" && isAuthPage) {
             router.replace("/terapeuta");
           } else if (profile.rol === "paciente" && isAuthPage) {
             router.replace("/paciente");
-          } else {
-            setLoading(false);
           }
         } else {
           // User in Auth but not Firestore, log them out
           await auth.signOut();
           setUser(null);
           setUserProfile(null);
-          setLoading(false);
         }
       } else {
         // User is not logged in
@@ -68,10 +66,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const isProtectedRoute = pathname.startsWith('/terapeuta') || pathname.startsWith('/paciente');
         if (isProtectedRoute) {
           router.replace('/');
-        } else {
-          setLoading(false);
         }
       }
+      // This ensures the loading spinner is turned off in all cases
+      setLoading(false);
     });
 
     return () => unsubscribe();
