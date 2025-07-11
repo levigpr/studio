@@ -28,8 +28,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Force refresh of the token to get custom claims after signup/login.
+        await firebaseUser.getIdToken(true);
+        
         if (!db) {
             setLoading(false);
             console.error("Firestore is not initialized");
