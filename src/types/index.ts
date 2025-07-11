@@ -33,8 +33,12 @@ export interface Sesion {
   terapeutaUid: string;
   pacienteUid: string;
   fecha: Timestamp;
-  estado: "Programada" | "Completada" | "Cancelada";
-  notasTerapeuta?: string;
+  estado: "agendada" | "completada" | "cancelada";
+  modalidad: "presencial" | "virtual";
+  ubicacion?: string;
+  nota?: string;
+  creadaEn: Timestamp;
+  notasTerapeuta?: string; // Para después de la sesión
   dolorInicial?: number;
   dolorFinal?: number;
 }

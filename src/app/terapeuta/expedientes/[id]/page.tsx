@@ -24,11 +24,22 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 const sesionFormSchema = z.object({
   fecha: z.date({
     required_error: "La fecha es requerida.",
   }),
+  modalidad: z.enum(["presencial", "virtual"], {
+    required_error: "Debes seleccionar una modalidad."
+  }),
+  ubicacion: z.string().optional(),
+  nota: z.string().optional(),
+}).refine(data => data.modalidad === 'virtual' || (data.modalidad === 'presencial' && data.ubicacion), {
+    message: "La ubicación es requerida para sesiones presenciales.",
+    path: ["ubicacion"],
 });
 
 export default function ExpedienteDetallePage() {
@@ -47,7 +58,12 @@ export default function ExpedienteDetallePage() {
 
   const form = useForm<z.infer<typeof sesionFormSchema>>({
     resolver: zodResolver(sesionFormSchema),
+    defaultValues: {
+      modalidad: "presencial",
+    }
   });
+
+  const modalidad = form.watch("modalidad");
   
   const fetchSesiones = async () => {
       if (!expedienteId) return;
@@ -116,14 +132,17 @@ export default function ExpedienteDetallePage() {
         terapeutaUid: user.uid,
         pacienteUid: expediente.pacienteUid,
         fecha: Timestamp.fromDate(values.fecha),
-        estado: "Programada",
+        modalidad: values.modalidad,
+        ubicacion: values.ubicacion || '',
+        nota: values.nota || '',
+        estado: "agendada",
+        creadaEn: serverTimestamp(),
       });
 
-      // Refetch sesiones
       await fetchSesiones();
 
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
-      form.reset();
+      form.reset({ modalidad: 'presencial', fecha: undefined, ubicacion: '', nota: '' });
       setIsModalOpen(false);
     } catch (error) {
       console.error("Error agendando sesión:", error);
@@ -135,9 +154,9 @@ export default function ExpedienteDetallePage() {
 
   const getBadgeVariant = (estado: Sesion["estado"]) => {
     switch (estado) {
-      case "Programada": return "secondary";
-      case "Completada": return "default";
-      case "Cancelada": return "destructive";
+      case "agendada": return "secondary";
+      case "completada": return "default";
+      case "cancelada": return "destructive";
       default: return "outline";
     }
   };
@@ -200,7 +219,7 @@ export default function ExpedienteDetallePage() {
               <DialogTrigger asChild>
                 <Button><PlusCircle className="mr-2 h-4 w-4"/> Agendar Sesión</Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                   <DialogTitle>Agendar Nueva Sesión</DialogTitle>
                 </DialogHeader>
@@ -211,7 +230,7 @@ export default function ExpedienteDetallePage() {
                       name="fecha"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel>Fecha de la sesión</FormLabel>
+                          <FormLabel>Fecha y hora de la sesión</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
@@ -223,7 +242,7 @@ export default function ExpedienteDetallePage() {
                                   )}
                                 >
                                   {field.value ? (
-                                    format(field.value, "PPP", { locale: es })
+                                    format(field.value, "PPP p", { locale: es })
                                   ) : (
                                     <span>Elige una fecha</span>
                                   )}
@@ -245,6 +264,65 @@ export default function ExpedienteDetallePage() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                        control={form.control}
+                        name="modalidad"
+                        render={({ field }) => (
+                            <FormItem className="space-y-3">
+                                <FormLabel>Modalidad</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex space-x-4"
+                                    >
+                                    <FormItem className="flex items-center space-x-3 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="presencial" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">Presencial</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-3 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="virtual" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">Virtual</FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    {modalidad === 'presencial' && (
+                        <FormField
+                            control={form.control}
+                            name="ubicacion"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Ubicación</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Ej: Clínica Rehabilita #4" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
+                     <FormField
+                        control={form.control}
+                        name="nota"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Nota (Opcional)</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="Ej: Ejercicios de seguimiento post-evaluación inicial" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+
                     <Button type="submit" disabled={isSubmitting} className="w-full">
                       {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                       Guardar Sesión
@@ -256,14 +334,21 @@ export default function ExpedienteDetallePage() {
         </CardHeader>
         <CardContent>
             {sesiones.length > 0 ? (
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                     {sesiones.map(sesion => (
-                        <li key={sesion.id} className="flex justify-between items-center p-3 rounded-lg border">
-                           <div>
-                             <p className="font-semibold">{format(sesion.fecha.toDate(), "eeee, dd 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
-                             <Badge variant={getBadgeVariant(sesion.estado)} className="mt-1">{sesion.estado}</Badge>
+                        <li key={sesion.id} className="flex justify-between items-start p-4 rounded-lg border bg-muted/20">
+                           <div className="flex-1">
+                             <div className="flex justify-between items-center">
+                                <p className="font-semibold">{format(sesion.fecha.toDate(), "eeee, dd 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}</p>
+                                <Badge variant={getBadgeVariant(sesion.estado)} className="capitalize">{sesion.estado}</Badge>
+                             </div>
+                             <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                                <p><strong className="font-medium text-foreground">Modalidad:</strong> <span className="capitalize">{sesion.modalidad}</span></p>
+                                {sesion.ubicacion && <p><strong className="font-medium text-foreground">Ubicación:</strong> {sesion.ubicacion}</p>}
+                                {sesion.nota && <p><strong className="font-medium text-foreground">Nota:</strong> {sesion.nota}</p>}
+                             </div>
                            </div>
-                           <Button variant="ghost" size="sm">Ver Detalles</Button>
+                           <Button variant="ghost" size="sm" className="ml-4 self-center">Ver Detalles</Button>
                         </li>
                     ))}
                 </ul>
