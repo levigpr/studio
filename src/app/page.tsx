@@ -1,28 +1,18 @@
 "use client";
 
 import { useAuth } from "@/context/auth-context";
-import { Loader2 } from "lucide-react";
+import { LoginForm } from "@/components/auth/login-form";
 
 export default function Home() {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
 
-  // The AuthProvider will now handle redirection automatically.
-  // We just need to show a loading state until the user is redirected.
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-16 w-16 animate-spin" />
-      </div>
-    );
+  // The AuthProvider now handles redirection and shows a loading screen.
+  // This page will only render the LoginForm when loading is complete AND there's no user.
+  // If a user is logged in, the AuthProvider will have already redirected them.
+  if (loading || user) {
+    // AuthProvider shows its own loader, but as a fallback, we can show one here too.
+    return null;
   }
 
-  // This part should ideally not be reached if redirection is working,
-  // but it's a good fallback. It could redirect to login or show a message.
-  // For now, we'll keep showing the loader as the redirection should be quick.
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Loader2 className="h-16 w-16 animate-spin" />
-      <p className="ml-4">Redirigiendo...</p>
-    </div>
-  );
+  return <LoginForm />;
 }
