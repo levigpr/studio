@@ -5,6 +5,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -22,33 +23,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setLoading(true);
       if (user) {
         setUser(user);
         const docRef = doc(db, "usuarios", user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setUserProfile({ uid: docSnap.id, ...docSnap.data() } as UserProfile);
+          const profile = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
+          setUserProfile(profile);
+
+          const isAuthPage = pathname === '/' || pathname === '/signup';
+          if (profile.rol === "terapeuta" && isAuthPage) {
+            router.replace("/terapeuta");
+          } else if (profile.rol === "paciente" && isAuthPage) {
+            router.replace("/paciente");
+          } else {
+             setLoading(false);
+          }
         } else {
-          // Handle case where user exists in Auth but not in Firestore
+          // User exists in Auth but not in Firestore, treat as logged out
           setUserProfile(null);
+          setLoading(false);
         }
       } else {
         setUser(null);
         setUserProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [pathname, router]);
 
   return (
     <AuthContext.Provider value={{ user, userProfile, loading }}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
