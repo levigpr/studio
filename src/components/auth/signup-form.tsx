@@ -7,11 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/context/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,8 +48,8 @@ const formSchema = z.object({
 
 export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
   const { toast } = useToast();
-  const { user: authenticatedUser } = useAuth();
   const functions = getFunctions(auth.app);
   const createUser = httpsCallable(functions, 'createUser');
 
@@ -77,12 +74,6 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
-    if (authenticatedUser) {
-        toast({ title: "Error", description: "Ya tienes una sesión activa.", variant: "destructive"});
-        setIsLoading(false);
-        return;
-    }
-    
     // Llamamos a la Cloud Function para crear el usuario.
     // Esto asegura que el perfil de Firestore y los custom claims se creen correctamente en el backend.
     try {
@@ -106,7 +97,8 @@ export function SignupForm() {
             description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
         });
         
-        // No es necesario redirigir, el usuario deberá ir a la página de login.
+        // Redirigir al login para que el usuario inicie sesión y se active el listener de Auth
+        router.push('/');
 
     } catch (error: any) {
       console.error(error);
