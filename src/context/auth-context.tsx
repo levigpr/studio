@@ -6,7 +6,6 @@ import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
@@ -36,26 +35,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const profile = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
             setUser(firebaseUser);
             setUserProfile(profile);
-
-            const isAuthPage = pathname === '/' || pathname.startsWith('/signup');
-            if (isAuthPage) {
-                if (profile.rol === "terapeuta") {
-                    router.replace("/terapeuta");
-                } else if (profile.rol === "paciente") {
-                    router.replace("/paciente");
-                }
-            } else {
-                setLoading(false);
-            }
           } else {
+            // User is authenticated but has no profile document
             setUser(firebaseUser);
             setUserProfile(null);
-            if (pathname !== '/signup') {
-                router.replace('/signup');
-            } else {
-                setLoading(false);
-            }
           }
+          setLoading(false);
         }, (error) => {
             console.error("Error fetching user profile:", error);
             setUser(null);
@@ -67,19 +52,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setUser(null);
         setUserProfile(null);
-        const isProtectedRoute = pathname.startsWith('/terapeuta') || pathname.startsWith('/paciente');
-        if (isProtectedRoute) {
-          router.replace('/');
-        }
         setLoading(false);
       }
     });
 
     return () => unsubscribeAuth();
-  }, [pathname, router]);
+  }, []); // Runs only once on mount
 
-  // The loading state from the context now primarily indicates if user data is available.
-  // The initial "whole page" loader is handled by the AppContent component now.
+  useEffect(() => {
+    if (loading) return; // Wait until auth state is determined
+
+    const isAuthPage = pathname === '/' || pathname.startsWith('/signup');
+    const isProtectedRoute = pathname.startsWith('/terapeuta') || pathname.startsWith('/paciente');
+
+    if (user) {
+        if (userProfile) {
+            // User is logged in and has a profile
+            if (userProfile.rol === 'terapeuta' && isAuthPage) {
+                router.replace('/terapeuta');
+            } else if (userProfile.rol === 'paciente' && isAuthPage) {
+                router.replace('/paciente');
+            }
+        } else {
+            // User is logged in but has no profile, redirect to signup to complete it
+            if (pathname !== '/signup') {
+                router.replace('/signup');
+            }
+        }
+    } else {
+        // No user is logged in
+        if (isProtectedRoute) {
+            router.replace('/');
+        }
+    }
+  }, [user, userProfile, loading, pathname, router]);
+
   return (
     <AuthContext.Provider value={{ user, userProfile, loading }}>
         {children}
