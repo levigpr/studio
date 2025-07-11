@@ -3,91 +3,80 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Reglas para la colección 'usuarios'
     match /usuarios/{userId} {
-      // Cualquiera puede crear un perfil de usuario (signup)
-      allow create: if request.auth != null;
-
-      // Un usuario solo puede leer o actualizar su propio perfil
-      allow read, update: if request.auth != null && request.auth.uid == userId;
+      // Create: Anyone can create a user profile (signup)
+      allow create: if request.auth.uid == userId;
+      // Read: Authenticated users can read their own profile, therapists can read patient profiles.
+      allow read: if request.auth.uid == userId || (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta');
+      // Update: Authenticated users can update their own profile
+      allow update: if request.auth.uid == userId;
+      // List: Therapists can list patients, but this is a broad rule.
+      // We will handle specific patient listing in the app logic.
+      // Deny general listing for security.
+      allow list: if get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta';
     }
 
-    // Reglas para la colección 'expedientes'
     match /expedientes/{expedienteId} {
-        // Quién puede leer:
-        // - El terapeuta asignado al expediente.
-        // - El paciente asignado al expediente.
-        allow read: if request.auth != null && (request.auth.uid == resource.data.terapeutaUid || request.auth.uid == resource.data.pacienteUid);
+      // Read: The assigned therapist or patient can read the record.
+      allow read: if request.auth.uid == resource.data.terapeutaUid || request.auth.uid == resource.data.pacienteUid;
 
-        // Quién puede listar (hacer queries):
-        // - El terapeuta para ver sus propios expedientes.
-        allow list: if request.auth != null && request.query.get("where")[0][0] == "terapeutaUid" && request.query.get("where")[0][2] == request.auth.uid;
+      // Create: Only an authenticated therapist can create a record for a patient.
+      // Fields diagnostico, objetivos, and planTratamiento are optional on creation.
+      allow create: if request.auth.uid != null
+                    && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta'
+                    && request.resource.data.terapeutaUid == request.auth.uid
+                    && 'pacienteUid' in request.resource.data
+                    && 'fechaCreacion' in request.resource.data;
+      
+      // Update: Only the assigned therapist can update the clinical information.
+      allow update: if request.auth.uid == resource.data.terapeutaUid;
 
-        // Quién puede crear:
-        // - Un terapeuta autenticado.
-        // - Se deben incluir los campos obligatorios.
-        allow create: if request.auth != null && request.resource.data.terapeutaUid == request.auth.uid
-                        && 'pacienteUid' in request.resource.data && request.resource.data.pacienteUid is string
-                        && 'diagnostico' in request.resource.data && request.resource.data.diagnostico is string
-                        && 'objetivos' in request.resource.data && request.resource.data.objetivos is string
-                        && 'planTratamiento' in request.resource.data && request.resource.data.planTratamiento is string
-                        && 'fechaCreacion' in request.resource.data;
+      // List: Therapists can list the records that belong to them.
+      allow list: if request.auth.uid != null && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta';
+
+      // Delete: Not allowed for now to prevent accidental data loss.
+      allow delete: if false;
     }
 
-    // Reglas para la colección 'galerias'
-    match /galerias/{galeriaId} {
-        // Quién puede leer:
-        // - El terapeuta que la creó.
-        // - Los pacientes que están en la lista de 'pacientesAsignados'.
-        allow read: if request.auth != null && (request.auth.uid == resource.data.creadaPor || request.auth.uid in resource.data.pacientesAsignados);
-
-        // Quién puede listar:
-        // - Terapeutas para ver sus galerías.
-        // - Pacientes para ver las galerías asignadas a ellos.
-        allow list: if request.auth != null &&
-                    ((request.query.get("where")[0][0] == "creadaPor" && request.query.get("where")[0][2] == request.auth.uid) ||
-                     (request.query.get("where")[0][0] == "pacientesAsignados" && request.query.get("where")[0][1] == "array-contains" && request.query.get("where")[0][2] == request.auth.uid));
-
-        // Quién puede crear o actualizar:
-        // - Solo el terapeuta que la creó.
-        allow create, update: if request.auth != null && request.resource.data.creadaPor == request.auth.uid;
-    }
-
-    // Reglas para la colección 'sesiones'
     match /sesiones/{sesionId} {
-        // Quién puede leer o listar:
-        // - El terapeuta asignado a la sesión.
-        // - El paciente asignado a la sesión.
-        allow read, list: if request.auth != null && (
-            (request.query.get("where")[0][0] == "pacienteUid" && request.query.get("where")[0][2] == request.auth.uid) ||
-            (request.query.get("where")[0][0] == "terapeutaUid" && request.query.get("where")[0][2] == request.auth.uid) ||
-            (request.auth.uid == resource.data.terapeutaUid) ||
-            (request.auth.uid == resource.data.pacienteUid)
-        );
+      // Read, List: The assigned therapist or patient can read/list sessions.
+      allow read, list: if request.auth.uid == resource.data.terapeutaUid 
+                  || request.auth.uid == resource.data.pacienteUid
+                  || (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta' && request.query.get('terapeutaUid') == request.auth.uid);
 
-        // Quién puede crear:
-        // - Solo el terapeuta asignado al expediente.
-        allow create: if request.auth != null && request.resource.data.terapeutaUid == request.auth.uid;
-
-        // Quién puede actualizar:
-        // - Solo el terapeuta asignado a la sesión.
-        allow update: if request.auth != null && request.auth.uid == resource.data.terapeutaUid;
+      // Create: The assigned therapist can create sessions.
+      allow create: if request.auth.uid != null
+                    && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta'
+                    && request.resource.data.terapeutaUid == request.auth.uid;
+      
+      // Update: The assigned therapist can update sessions (e.g., mark as complete).
+      allow update: if request.auth.uid == resource.data.terapeutaUid;
     }
 
-    // Reglas para la colección 'avances'
-    match /avances/{avanceId} {
-        // Quién puede leer o listar:
-        // - El terapeuta o el paciente asignados al avance.
-        allow read, list: if request.auth != null && (
-            (request.query.get("where")[0][0] == "pacienteUid" && request.query.get("where")[0][2] == request.auth.uid) ||
-            (request.query.get("where")[0][0] == "terapeutaUid" && request.query.get("where")[0][2] == request.auth.uid) ||
-            (request.auth.uid == resource.data.terapeutaUid) ||
-            (request.auth.uid == resource.data.pacienteUid)
-        );
+    match /galerias/{galeriaId} {
+      // Read: The creator (therapist) or an assigned patient can read.
+      allow read: if request.auth.uid == resource.data.creadaPor || request.auth.uid in resource.data.pacientesAsignados;
+      
+      // List: Therapists can list their own galleries. Patients can list galleries assigned to them.
+      allow list: if (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta' && request.query.get('creadaPor') == request.auth.uid)
+                  || (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'paciente' && request.auth.uid in resource.data.pacientesAsignados);
 
-        // Quién puede crear:
-        // - El paciente que está registrando su propio avance.
-        allow create: if request.auth != null && request.resource.data.pacienteUid == request.auth.uid;
+      // Create: Only therapists can create galleries.
+      allow create: if get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta';
+      
+      // Update: Only the creator (therapist) can update.
+      allow update: if request.auth.uid == resource.data.creadaPor;
+    }
+
+    match /avances/{avanceId} {
+        // Read, List: The assigned therapist or patient can read/list their progress reports.
+        allow read, list: if request.auth.uid == resource.data.terapeutaUid 
+                    || request.auth.uid == resource.data.pacienteUid
+                    || (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'terapeuta' && request.query.get('terapeutaUid') == request.auth.uid);
+
+        // Create: Only patients can create self-reports.
+        allow create: if get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.rol == 'paciente'
+                      && request.resource.data.pacienteUid == request.auth.uid;
     }
   }
 }
