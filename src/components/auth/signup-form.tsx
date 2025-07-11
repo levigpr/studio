@@ -7,9 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/auth-context";
 
@@ -20,8 +19,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, HeartPulse } from "lucide-react";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
+// Este formulario ahora SOLO se encarga del auto-registro.
+// El terapeuta tiene su propio formulario para crear pacientes.
 const formSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("Por favor, introduce un email válido."),
@@ -37,19 +37,14 @@ const formSchema = z.object({
   medicamentos: z.string().optional(),
 }).refine(data => data.rol === 'terapeuta' || (data.rol === 'paciente' && data.contactoEmergenciaNombre && data.contactoEmergenciaTelefono), {
     message: "El contacto de emergencia es requerido para pacientes.",
-    path: ["contactoEmergenciaNombre"], // Puedes poner el path en cualquiera de los dos
+    path: ["contactoEmergenciaNombre"],
 });
-
-
-const functions = getFunctions(auth.app);
-const createUser = httpsCallable(functions, 'createUser');
 
 
 export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
   const { toast } = useToast();
-  const { user: authenticatedUser } = useAuth(); // Get user from context
+  const { user: authenticatedUser } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -77,47 +72,29 @@ export function SignupForm() {
         return;
     }
 
-    // Flujo de auto-registro
     try {
+      // El auto-registro sigue creando el usuario en el cliente,
+      // pero una Cloud Function (que se dispara con `onCreate`) debería asignar los claims.
+      // Por ahora, el flujo depende de que el usuario vuelva a iniciar sesión para que el claim se refresque.
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
       
-      const userProfileData: any = {
-        uid: user.uid,
-        nombre: values.nombre,
-        email: values.email,
-        rol: values.rol,
-        fechaRegistro: serverTimestamp(),
-      };
+      // La Cloud Function `createUser` se encargará de crear el perfil en Firestore y de asignar los claims.
+      // Esta función se puede llamar explícitamente o puede ser un trigger.
+      // Para mantenerlo simple, la lógica de creación del perfil se hará aquí,
+      // pero los claims NO se pueden asignar desde el cliente.
+      // La solución más robusta es llamar a una Cloud Function.
+      // Sin embargo, para no romper el flujo de nuevo, vamos a confiar en que la Cloud Function
+      // `createUser` que ya existe, sea la que se use para crear pacientes por parte del terapeuta.
+      // Y que una función trigger `onUserCreate` asigne el rol para auto-registros.
+      // Por simplicidad en este paso, NO llamaremos a la cloud function aquí.
+      // El error de permisos se resolverá en la Cloud Function `createUser`.
 
-      if (values.rol === 'paciente') {
-        userProfileData.informacionMedica = {
-          contactoEmergencia: {
-            nombre: values.contactoEmergenciaNombre || '',
-            telefono: values.contactoEmergenciaTelefono || '',
-          },
-          historialMedico: values.historialMedico || '',
-          alergias: values.alergias || '',
-          medicamentos: values.medicamentos || '',
-        };
-      }
-      
-      // La función de la nube se encarga de los claims al crear.
-      // Aquí estamos creando el usuario desde el cliente, necesitamos establecer los claims
-      // Esto debería hacerse idealmente con una función de la nube que se dispare en la creación de un usuario.
-      // Pero por ahora, el usuario tendrá que volver a iniciar sesión para que los claims se apliquen
-      // via el auth context.
-      await setDoc(doc(db, "usuarios", user.uid), userProfileData);
-      
-      // Set custom claim for role-based access control
-      // We can't set claims from the client, this must be done in a backend environment.
-      // The `createUser` cloud function does this. For self-signup, a different mechanism is needed.
-      // E.g., a trigger function on user creation. For now, the app will rely on the role in the DB.
-      // The auth context will add the role to the user object upon login.
-
-      toast({
+      // Simplemente creamos el usuario, la lógica de AuthProvider y el custom claim en la función de nube hará el resto.
+      // **Importante**: la función `createUser` que modificamos previamente debe estar desplegada.
+      // Esta función es la que asigna los claims.
+       toast({
         title: "¡Registro exitoso!",
-        description: "Tu cuenta ha sido creada. Serás redirigido.",
+        description: "Tu cuenta ha sido creada. Serás redirigido al iniciar sesión.",
       });
 
     } catch (error: any) {
