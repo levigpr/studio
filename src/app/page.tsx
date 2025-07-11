@@ -11,7 +11,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // We only want to redirect if loading is false and we have a user and a profile
+    // Solo redirigir cuando tengamos toda la información necesaria.
     if (!loading && user && userProfile) {
       if (userProfile.rol === "terapeuta") {
         router.push("/terapeuta");
@@ -21,26 +21,16 @@ export default function Home() {
     }
   }, [user, userProfile, loading, router]);
 
-  // While the auth state is loading, show a full-screen spinner
-  if (loading) {
+  // Muestra el spinner mientras carga O si hay un usuario pero todavía no su perfil.
+  if (loading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-16 w-16 animate-spin" />
+        {user && <p className="ml-4">Redirigiendo...</p>}
       </div>
     );
   }
 
-  // If not loading and there's no user, show the login form
-  if (!user) {
-    return <LoginForm />;
-  }
-
-  // If not loading and there IS a user, but we are waiting for the redirect logic
-  // in useEffect to run, show the "Redirigiendo..." message.
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <Loader2 className="h-16 w-16 animate-spin" />
-      <p className="ml-4">Redirigiendo...</p>
-    </div>
-  );
+  // Si no está cargando y no hay usuario, muestra el formulario de login.
+  return <LoginForm />;
 }
