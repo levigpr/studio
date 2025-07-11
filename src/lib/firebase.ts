@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -14,13 +14,16 @@ const firebaseConfig = {
 // Simple check to ensure all required env vars are present
 const areEnvsLoaded = Object.values(firebaseConfig).every(Boolean);
 
-// Initialize Firebase only if the config is fully loaded
-const app = areEnvsLoaded && !getApps().length ? initializeApp(firebaseConfig) : (getApps().length ? getApp() : null);
-const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
 
-if (!areEnvsLoaded) {
-    console.error("Firebase environment variables are not fully loaded. Please check your .env.local file.");
+if (areEnvsLoaded) {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+} else {
+    console.error("Firebase environment variables are not fully loaded. Please check your .env.local file. Some features may not work.");
 }
 
 export { app, auth, db };
