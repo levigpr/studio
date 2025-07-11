@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity } from "lucide-react";
+import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { generateProgressSummary, type ProgressSummaryOutput } from "@/ai/flows/generate-progress-summary";
 
 
 const sesionFormSchema = z.object({
@@ -70,6 +71,11 @@ export default function ExpedienteDetallePage() {
   const [selectedSesion, setSelectedSesion] = useState<Sesion | null>(null);
   const [isProgresoModalOpen, setIsProgresoModalOpen] = useState(false);
 
+  // State for AI analysis
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState<ProgressSummaryOutput | null>(null);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+
   const sesionForm = useForm<z.infer<typeof sesionFormSchema>>({
     resolver: zodResolver(sesionFormSchema),
     defaultValues: {
@@ -94,15 +100,20 @@ export default function ExpedienteDetallePage() {
         // Fetch Sesiones
         const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", expedienteId));
         const sesionesSnapshot = await getDocs(sesionesQuery);
-        const sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
-        sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
+        let sesionesList = sesionesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sesion));
+        sesionesList = sesionesList.sort((a, b) => b.fecha.toMillis() - a.fecha.toMillis());
         setSesiones(sesionesList);
 
         // Fetch Avances
         const avancesQuery = query(collection(db, "avances"), where("expedienteId", "==", expedienteId));
         const avancesSnapshot = await getDocs(avancesQuery);
-        const avancesList = avancesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Avance));
-        avancesList.sort((a, b) => b.fechaRegistro.toMillis() - a.fechaRegistro.toMillis());
+        let avancesList = avancesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Avance));
+        avancesList = avancesList.sort((a, b) => {
+            if (a.fechaRegistro && b.fechaRegistro) {
+                return b.fechaRegistro.toMillis() - a.fechaRegistro.toMillis();
+            }
+            return 0;
+        });
         setAvances(avancesList);
 
       } catch (error) {
@@ -141,6 +152,7 @@ export default function ExpedienteDetallePage() {
     }
 
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expedienteId, router, toast]);
 
   async function onAgendarSesion(values: z.infer<typeof sesionFormSchema>) {
@@ -203,6 +215,24 @@ export default function ExpedienteDetallePage() {
         toast({ title: "Error", description: "No se pudo cancelar la sesión.", variant: "destructive" });
     } finally {
         setIsSubmitting(false);
+    }
+  }
+
+  async function handleAiAnalysis(avance: Avance) {
+    setIsAiLoading(true);
+    setAiSummary(null);
+    setIsAiModalOpen(true);
+    try {
+      // We need to convert Timestamps to something serializable
+      const serializableAvance = JSON.parse(JSON.stringify(avance));
+      const summary = await generateProgressSummary({ avance: serializableAvance });
+      setAiSummary(summary);
+    } catch (error) {
+      console.error("AI Analysis failed:", error);
+      toast({ title: "Error de IA", description: "No se pudo generar el análisis.", variant: "destructive" });
+      setIsAiModalOpen(false);
+    } finally {
+      setIsAiLoading(false);
     }
   }
 
@@ -341,9 +371,15 @@ export default function ExpedienteDetallePage() {
                                 <li key={avance.id} className="p-4 rounded-lg border bg-muted/20">
                                     <div className="flex justify-between items-center mb-3">
                                         <p className="font-semibold">{format(avance.fechaRegistro.toDate(), "eeee, dd 'de' MMMM, yyyy", { locale: es })}</p>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            {getMoodIcon(avance.estadoAnimo)}
-                                            <span className="capitalize">{avance.estadoAnimo?.replace('-', ' ')}</span>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-2 text-sm">
+                                                {getMoodIcon(avance.estadoAnimo)}
+                                                <span className="capitalize">{avance.estadoAnimo?.replace('-', ' ')}</span>
+                                            </div>
+                                            <Button size="sm" variant="outline" onClick={() => handleAiAnalysis(avance)} disabled={isAiLoading}>
+                                                <Sparkles className="mr-2 h-4 w-4"/>
+                                                Analizar Avance
+                                            </Button>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-sm">
@@ -381,7 +417,7 @@ export default function ExpedienteDetallePage() {
         </CardContent>
       </Card>
       
-      {/* Modal para registrar progreso */}
+      {/* Modal para registrar progreso de sesión */}
       <Dialog open={isProgresoModalOpen} onOpenChange={setIsProgresoModalOpen}>
         <DialogContent>
             <DialogHeader><DialogTitle>Registrar Progreso de la Sesión</DialogTitle></DialogHeader>
@@ -426,6 +462,50 @@ export default function ExpedienteDetallePage() {
             </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal para análisis IA */}
+       <AlertDialog open={isAiModalOpen} onOpenChange={setIsAiModalOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                        <Sparkles className="text-primary"/>
+                        Análisis del Avance con IA
+                    </AlertDialogTitle>
+                </AlertDialogHeader>
+                {isAiLoading ? (
+                    <div className="flex items-center justify-center p-8">
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                ) : (
+                    aiSummary && (
+                        <div>
+                           <CardDescription>Este es un resumen generado por IA para ayudarte a identificar rápidamente los puntos clave del reporte del paciente.</CardDescription>
+                           <div className="mt-4 space-y-4 text-sm">
+                                <div>
+                                    <h4 className="font-semibold">Resumen General</h4>
+                                    <p className="text-muted-foreground">{aiSummary.resumen}</p>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold">Puntos Clave a Notar</h4>
+                                    <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                                        {aiSummary.puntosClave.map((punto, index) => (
+                                            <li key={index}>{punto}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-primary/90 flex items-center gap-2"><AlertCircle/>Sugerencia de Acción</h4>
+                                    <p className="text-muted-foreground italic">{aiSummary.sugerencia}</p>
+                                </div>
+                           </div>
+                        </div>
+                    )
+                )}
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cerrar</AlertDialogCancel>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
