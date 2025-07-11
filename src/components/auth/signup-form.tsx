@@ -8,6 +8,7 @@ import * as z from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,10 @@ const formSchema = z.object({
   medicamentos: z.string().optional(),
 });
 
+const functions = getFunctions(auth.app);
+const createUser = httpsCallable(functions, 'createUser');
+
+
 export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -61,8 +66,44 @@ export function SignupForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
+    
+    // Flujo para que un terapeuta cree un nuevo paciente
+    if (authenticatedUser?.uid && authenticatedUser.rol === 'terapeuta') {
+        try {
+            await createUser({
+                nombre: values.nombre,
+                email: values.email,
+                rol: values.rol,
+                informacionMedica: values.rol === 'paciente' ? {
+                    contactoEmergenciaNombre: values.contactoEmergenciaNombre,
+                    contactoEmergenciaTelefono: values.contactoEmergenciaTelefono,
+                    historialMedico: values.historialMedico,
+                    alergias: values.alergias,
+                    medicamentos: values.medicamentos,
+                } : undefined,
+            });
+            toast({
+                title: "Usuario creado",
+                description: "El nuevo paciente ha sido registrado. Aún no tiene contraseña.",
+            });
+            router.push('/terapeuta/pacientes');
+        } catch (error: any) {
+            console.error(error);
+            toast({
+                title: "Error al crear usuario",
+                description: error.message || "No se pudo crear el perfil.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+        return;
+    }
+
+    // Flujo de auto-registro (o completar perfil)
     try {
       let user;
+      let isNewUser = false;
       if (authenticatedUser) {
         user = authenticatedUser;
         if (user.displayName !== values.nombre) {
@@ -74,6 +115,7 @@ export function SignupForm() {
             setIsLoading(false);
             return;
          }
+         isNewUser = true;
          const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
          user = userCredential.user;
       }
@@ -83,8 +125,11 @@ export function SignupForm() {
         nombre: values.nombre,
         email: values.email,
         rol: values.rol,
-        fechaRegistro: serverTimestamp(),
       };
+
+      if (isNewUser) {
+          userProfileData.fechaRegistro = serverTimestamp();
+      }
 
       if (values.rol === 'paciente') {
         userProfileData.informacionMedica = {
@@ -97,8 +142,11 @@ export function SignupForm() {
           medicamentos: values.medicamentos || '',
         };
       }
-
-      await setDoc(doc(db, "usuarios", user.uid), userProfileData);
+      
+      // La función de la nube se encarga de los claims al crear.
+      // Aquí, al auto-registrarse, necesitamos una forma de obtenerlos.
+      // Por ahora, el listener de auth se encargará de re-evaluar el token.
+      await setDoc(doc(db, "usuarios", user.uid), userProfileData, { merge: true });
       
       toast({
         title: "¡Registro exitoso!",
@@ -120,6 +168,8 @@ export function SignupForm() {
       setIsLoading(false);
     }
   }
+  
+  const isTerapeutaAddingPatient = authenticatedUser?.rol === 'terapeuta';
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -129,10 +179,10 @@ export function SignupForm() {
                 <HeartPulse className="h-12 w-12 text-primary" />
             </div>
           <CardTitle className="font-headline text-2xl">
-            {authenticatedUser ? "Completa tu perfil" : "Crea tu cuenta"}
+            {isTerapeutaAddingPatient ? "Añadir Nuevo Paciente" : (authenticatedUser ? "Completa tu perfil" : "Crea tu cuenta")}
             </CardTitle>
           <CardDescription>
-            {authenticatedUser ? "Añade tus datos para continuar." : "Únete a FisioApp para empezar"}
+            {isTerapeutaAddingPatient ? "Registra los datos del nuevo paciente." : (authenticatedUser ? "Añade tus datos para continuar." : "Únete a FisioApp para empezar")}
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -145,7 +195,7 @@ export function SignupForm() {
                   <FormItem>
                     <FormLabel>Nombre completo</FormLabel>
                     <FormControl>
-                      <Input placeholder="Tu nombre" {...field} />
+                      <Input placeholder="Nombre del usuario" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -158,7 +208,7 @@ export function SignupForm() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="tu@email.com" {...field} disabled={!!authenticatedUser} />
+                      <Input type="email" placeholder="usuario@email.com" {...field} disabled={!!authenticatedUser && !isTerapeutaAddingPatient} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -184,11 +234,11 @@ export function SignupForm() {
                 name="rol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Soy un...</FormLabel>
+                    <FormLabel>Rol del usuario</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona tu rol" />
+                          <SelectValue placeholder="Selecciona un rol" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -204,7 +254,7 @@ export function SignupForm() {
               {rolSeleccionado === 'paciente' && (
                 <div className="space-y-4 pt-4 border-t">
                   <h3 className="text-lg font-semibold text-center">Información Médica Adicional</h3>
-                  <p className="text-sm text-muted-foreground text-center">Esta información solo será visible para tu terapeuta.</p>
+                  <p className="text-sm text-muted-foreground text-center">Esta información solo será visible para los terapeutas.</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
@@ -269,7 +319,7 @@ export function SignupForm() {
 
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {authenticatedUser ? "Guardar Perfil" : "Crear Cuenta"}
+                {isTerapeutaAddingPatient ? "Añadir Paciente" : (authenticatedUser ? "Guardar Perfil" : "Crear Cuenta")}
               </Button>
             </form>
           </Form>

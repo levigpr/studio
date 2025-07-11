@@ -9,7 +9,7 @@ import type { UserProfile } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
 
 interface AuthContextType {
-  user: User | null;
+  user: (User & { rol?: string }) | null;
   userProfile: UserProfile | null;
   loading: boolean;
 }
@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<(User & { rol?: string }) | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -30,23 +30,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Force refresh of the token to get custom claims after signup/login.
-        await firebaseUser.getIdToken(true);
-        
+        const idTokenResult = await firebaseUser.getIdTokenResult(true);
+        const userWithRole = {
+          ...firebaseUser,
+          rol: idTokenResult.claims.rol as string | undefined,
+        };
+
         if (!db) {
+            setUser(userWithRole);
             setLoading(false);
             console.error("Firestore is not initialized");
             return;
         }
+
         const userDocRef = doc(db, "usuarios", firebaseUser.uid);
         const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const profile = { uid: docSnap.id, ...docSnap.data() } as UserProfile;
-            setUser(firebaseUser);
+            setUser(userWithRole);
             setUserProfile(profile);
           } else {
             // User is authenticated but has no profile document
-            setUser(firebaseUser);
+            setUser(userWithRole);
             setUserProfile(null);
           }
           setLoading(false);
