@@ -27,6 +27,19 @@ export interface Expediente {
   fechaCreacion: Timestamp;
 }
 
+export interface Sesion {
+  id: string;
+  expedienteId: string;
+  terapeutaUid: string;
+  pacienteUid: string;
+  fecha: Timestamp;
+  estado: "Programada" | "Completada" | "Cancelada";
+  notasTerapeuta?: string;
+  dolorInicial?: number;
+  dolorFinal?: number;
+}
+
+
 export interface GaleriaVideo {
   titulo: string;
   youtubeUrl: string;
