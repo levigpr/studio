@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc, getDocs, collection, query, where, addDoc, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -137,48 +137,8 @@ export default function ExpedienteDetallePage() {
 
   const modalidad = sesionForm.watch("modalidad");
   
-  const fetchExpedienteData = async () => {
-    if (!expedienteId || !user) return;
-    try {
-        const expedienteDocRef = doc(db, "expedientes", expedienteId);
-        const expedienteDocSnap = await getDoc(expedienteDocRef);
-        
-        if (expedienteDocSnap.exists()) {
-          const expData = { id: expedienteDocSnap.id, ...expedienteDocSnap.data() } as Expediente;
-          if (expData.terapeutaUid !== user.uid) {
-             toast({ title: "Acceso denegado", description: "No tienes permiso para ver este expediente.", variant: "destructive" });
-             router.push('/terapeuta/expedientes');
-             return;
-          }
-          setExpediente(expData);
-          expedienteForm.reset({
-              diagnostico: expData.diagnostico || "",
-              objetivos: expData.objetivos || "",
-              planTratamiento: expData.planTratamiento || "",
-          });
-
-          if (!paciente) {
-              const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
-              const pacienteDocSnap = await getDoc(pacienteDocRef);
-              if (pacienteDocSnap.exists()) {
-                setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
-              }
-          }
-
-          await fetchRelatedData(expedienteId, expData.terapeutaUid, expData.pacienteUid);
-        } else {
-          toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
-          router.push('/terapeuta/expedientes');
-        }
-    } catch(error) {
-        console.error("Error fetching main data:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
-    }
-  }
-
-
-  const fetchRelatedData = async (currentExpedienteId: string, terapeutaUid?: string, pacienteUid?: string) => {
-      if (!currentExpedienteId || !terapeutaUid || !pacienteUid) return;
+  const fetchRelatedData = useCallback(async (currentExpedienteId: string) => {
+      if (!currentExpedienteId) return;
       try {
         // Fetch Sesiones
         const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", currentExpedienteId));
@@ -203,7 +163,49 @@ export default function ExpedienteDetallePage() {
           console.error("Error fetching related data:", error);
           toast({ title: "Error", description: "No se pudieron cargar las sesiones o avances.", variant: "destructive" });
       }
-  }
+  }, [toast]);
+
+  const fetchExpedienteData = useCallback(async () => {
+    if (!expedienteId || !user) return;
+    try {
+        const expedienteDocRef = doc(db, "expedientes", expedienteId);
+        const expedienteDocSnap = await getDoc(expedienteDocRef);
+        
+        if (expedienteDocSnap.exists()) {
+          const expData = { id: expedienteDocSnap.id, ...expedienteDocSnap.data() } as Expediente;
+          if (expData.terapeutaUid !== user.uid) {
+             toast({ title: "Acceso denegado", description: "No tienes permiso para ver este expediente.", variant: "destructive" });
+             router.push('/terapeuta/expedientes');
+             return;
+          }
+          setExpediente(expData);
+          expedienteForm.reset({
+              diagnostico: expData.diagnostico || "",
+              objetivos: expData.objetivos || "",
+              planTratamiento: expData.planTratamiento || "",
+          });
+
+          // Fetch patient profile if not already loaded
+          if (!paciente || paciente.uid !== expData.pacienteUid) {
+              const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
+              const pacienteDocSnap = await getDoc(pacienteDocRef);
+              if (pacienteDocSnap.exists()) {
+                setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
+              }
+          }
+          
+          await fetchRelatedData(expedienteId);
+
+        } else {
+          toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
+          router.push('/terapeuta/expedientes');
+        }
+    } catch(error) {
+        console.error("Error fetching main data:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
+    }
+  }, [expedienteId, user, toast, router, expedienteForm, paciente, fetchRelatedData]);
+
 
   useEffect(() => {
     async function initialLoad() {
@@ -212,8 +214,7 @@ export default function ExpedienteDetallePage() {
         setLoading(false);
     }
     initialLoad();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expedienteId, user, router, toast]);
+  }, [fetchExpedienteData]);
 
   async function onAgendarSesion(values: z.infer<typeof sesionFormSchema>) {
     if (!user || !expediente) return;
@@ -231,7 +232,7 @@ export default function ExpedienteDetallePage() {
         creadaEn: serverTimestamp(),
       });
 
-      await fetchRelatedData(expedienteId, expediente.terapeutaUid, expediente.pacienteUid);
+      await fetchRelatedData(expedienteId);
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
       sesionForm.reset({ modalidad: 'presencial', fecha: undefined, ubicacion: '', nota: '' });
       setIsModalOpen(false);
@@ -258,7 +259,7 @@ export default function ExpedienteDetallePage() {
             planProximaSesion: values.planProximaSesion || "",
             notasTerapeuta: values.notasTerapeuta,
         });
-        await fetchRelatedData(expedienteId, expediente?.terapeutaUid, expediente?.pacienteUid);
+        await fetchRelatedData(expedienteId);
         toast({ title: "Éxito", description: "La sesión ha sido marcada como completada." });
         setIsProgresoModalOpen(false);
         progresoForm.reset();
@@ -275,7 +276,7 @@ export default function ExpedienteDetallePage() {
     try {
         const sesionRef = doc(db, "sesiones", sesionId);
         await updateDoc(sesionRef, { estado: "cancelada" });
-        await fetchRelatedData(expedienteId, expediente?.terapeutaUid, expediente?.pacienteUid);
+        await fetchRelatedData(expedienteId);
         toast({ title: "Éxito", description: "La sesión ha sido cancelada." });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo cancelar la sesión.", variant: "destructive" });
@@ -562,7 +563,7 @@ export default function ExpedienteDetallePage() {
                                                 <DropdownMenuItem onSelect={(e) => e.preventDefault()}><XCircle className="mr-2 h-4 w-4" />Cancelar Sesión</DropdownMenuItem>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
-                                                    <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogHeader><AlertDialogTitle>¿Estás seguro?</AlertDialogTitle><DialogDescription>Esta acción no se puede deshacer. La sesión se marcará como cancelada.</DialogDescription></AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cerrar</AlertDialogCancel>
                                                         <AlertDialogAction onClick={() => onCancelarSesion(sesion.id)} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} Confirmar Cancelación</AlertDialogAction>
@@ -753,6 +754,7 @@ export default function ExpedienteDetallePage() {
                         <Sparkles className="text-primary"/>
                         Análisis del Avance con IA
                     </AlertDialogTitle>
+                    <DialogDescription>Este es un resumen generado por IA para ayudarte a identificar rápidamente los puntos clave del reporte del paciente.</DialogDescription>
                 </AlertDialogHeader>
                 {isAiLoading ? (
                     <div className="flex items-center justify-center p-8">
@@ -761,7 +763,7 @@ export default function ExpedienteDetallePage() {
                 ) : (
                     aiSummary && (
                         <div>
-                           <CardDescription>Este es un resumen generado por IA para ayudarte a identificar rápidamente los puntos clave del reporte del paciente.</CardDescription>
+                           
                            <div className="mt-4 space-y-4 text-sm">
                                 <div>
                                     <h4 className="font-semibold">Resumen General</h4>
