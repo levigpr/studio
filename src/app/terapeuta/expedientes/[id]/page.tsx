@@ -51,9 +51,9 @@ const sesionFormSchema = z.object({
 const progresoFormSchema = z.object({
     dolorInicial: z.number().min(0).max(10).optional(),
     dolorFinal: z.number().min(0).max(10).optional(),
-    observacionesObjetivas: z.string().min(10, "Las observaciones deben tener al menos 10 caracteres.").optional(),
-    tecnicasAplicadas: z.string().min(10, "Describe las técnicas aplicadas.").optional(),
-    planProximaSesion: z.string().min(10, "El plan debe tener al menos 10 caracteres.").optional(),
+    observacionesObjetivas: z.string().optional(),
+    tecnicasAplicadas: z.string().optional(),
+    planProximaSesion: z.string().optional(),
     notasTerapeuta: z.string().min(10, "Las notas deben tener al menos 10 caracteres."),
 });
 
@@ -540,3 +540,5 @@ export default function ExpedienteDetallePage() {
     </div>
   );
 }
+
+    
