@@ -15,6 +15,7 @@ import { useAuth } from "@/context/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +28,12 @@ const formSchema = z.object({
   rol: z.enum(["paciente", "terapeuta"], {
     required_error: "Debes seleccionar un rol.",
   }),
+  // Campos adicionales para el perfil del paciente
+  contactoEmergenciaNombre: z.string().optional(),
+  contactoEmergenciaTelefono: z.string().optional(),
+  historialMedico: z.string().optional(),
+  alergias: z.string().optional(),
+  medicamentos: z.string().optional(),
 });
 
 export function SignupForm() {
@@ -42,18 +49,22 @@ export function SignupForm() {
       email: authenticatedUser?.email || "", // Pre-fill email if user exists
       password: "",
       rol: undefined,
+      contactoEmergenciaNombre: "",
+      contactoEmergenciaTelefono: "",
+      historialMedico: "",
+      alergias: "",
+      medicamentos: "",
     },
   });
+
+  const rolSeleccionado = form.watch("rol");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
       let user;
-      // If a user is already authenticated (but has no profile), we just create the profile.
-      // Otherwise, we create a new user.
       if (authenticatedUser) {
         user = authenticatedUser;
-        // Optionally update their name in auth profile as well
         if (user.displayName !== values.nombre) {
             await updateProfile(user, { displayName: values.nombre });
         }
@@ -67,22 +78,32 @@ export function SignupForm() {
          user = userCredential.user;
       }
       
-      // Create the user document in Firestore
-      await setDoc(doc(db, "usuarios", user.uid), {
+      const userProfileData: any = {
         uid: user.uid,
         nombre: values.nombre,
         email: values.email,
         rol: values.rol,
         fechaRegistro: serverTimestamp(),
-      });
+      };
+
+      if (values.rol === 'paciente') {
+        userProfileData.informacionMedica = {
+          contactoEmergencia: {
+            nombre: values.contactoEmergenciaNombre || '',
+            telefono: values.contactoEmergenciaTelefono || '',
+          },
+          historialMedico: values.historialMedico || '',
+          alergias: values.alergias || '',
+          medicamentos: values.medicamentos || '',
+        };
+      }
+
+      await setDoc(doc(db, "usuarios", user.uid), userProfileData);
       
       toast({
         title: "¡Registro exitoso!",
         description: "Tu cuenta ha sido configurada. Serás redirigido.",
       });
-
-      // The AuthContext will handle the redirection automatically on state change.
-      // We don't need to push the router here.
 
     } catch (error: any) {
       console.error(error);
@@ -102,7 +123,7 @@ export function SignupForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-lg">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center mb-4">
                 <HeartPulse className="h-12 w-12 text-primary" />
@@ -143,7 +164,6 @@ export function SignupForm() {
                   </FormItem>
                 )}
               />
-              {/* Hide password field if user is already authenticated */}
               {!authenticatedUser && (
                 <FormField
                     control={form.control}
@@ -180,6 +200,73 @@ export function SignupForm() {
                   </FormItem>
                 )}
               />
+              
+              {rolSeleccionado === 'paciente' && (
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-lg font-semibold text-center">Información Médica Adicional</h3>
+                  <p className="text-sm text-muted-foreground text-center">Esta información solo será visible para tu terapeuta.</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="contactoEmergenciaNombre"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre de contacto de emergencia</FormLabel>
+                          <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="contactoEmergenciaTelefono"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono de emergencia</FormLabel>
+                          <FormControl><Input placeholder="Número de teléfono" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="historialMedico"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Historial Médico Relevante</FormLabel>
+                        <FormControl><Textarea placeholder="Cirugías previas, condiciones crónicas, etc." {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="alergias"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Alergias</FormLabel>
+                        <FormControl><Textarea placeholder="Medicamentos, alimentos, etc." {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="medicamentos"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Medicamentos Actuales</FormLabel>
+                        <FormControl><Textarea placeholder="Nombre del medicamento, dosis, frecuencia..." {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {authenticatedUser ? "Guardar Perfil" : "Crear Cuenta"}

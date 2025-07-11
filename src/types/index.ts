@@ -1,11 +1,22 @@
 import { Timestamp } from "firebase/firestore";
 
+export interface InformacionMedica {
+  contactoEmergencia?: {
+    nombre: string;
+    telefono: string;
+  };
+  historialMedico?: string;
+  alergias?: string;
+  medicamentos?: string;
+}
+
 export interface UserProfile {
   uid: string;
   nombre: string;
   email: string;
   rol: "terapeuta" | "paciente";
   fechaRegistro: Timestamp;
+  informacionMedica?: InformacionMedica;
 }
 
 export interface Expediente {
