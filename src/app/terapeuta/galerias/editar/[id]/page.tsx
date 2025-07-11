@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import type { Galeria } from "@/types";
+import type { Galeria, UserProfile } from "@/types";
 import { Loader2 } from "lucide-react";
-import { MultiSelect } from "@/components/ui/multi-select";
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select";
 
 const formSchema = z.object({
   pacientesAsignados: z.array(z.string()),
@@ -29,7 +29,7 @@ export default function EditarGaleriaPage() {
   const { toast } = useToast();
   
   const [galeria, setGaleria] = useState<Galeria | null>(null);
-  const [pacientes, setPacientes] = useState<{ value: string; label: string }[]>([]);
+  const [pacientesOptions, setPacientesOptions] = useState<MultiSelectOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -44,7 +44,7 @@ export default function EditarGaleriaPage() {
 
   useEffect(() => {
     async function fetchData() {
-      if (!galeriaId) return;
+      if (!user || !galeriaId) return;
       setLoading(true);
 
       try {
@@ -63,11 +63,14 @@ export default function EditarGaleriaPage() {
         // Fetch patients
         const q = query(collection(db, "usuarios"), where("rol", "==", "paciente"));
         const querySnapshot = await getDocs(q);
-        const pacientesList = querySnapshot.docs.map(doc => ({
-          value: doc.id,
-          label: doc.data().nombre,
-        }));
-        setPacientes(pacientesList);
+        const pacientesList = querySnapshot.docs.map(doc => {
+          const data = doc.data() as UserProfile;
+          return {
+            value: doc.id,
+            label: data.nombre,
+          };
+        });
+        setPacientesOptions(pacientesList);
 
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -78,7 +81,7 @@ export default function EditarGaleriaPage() {
     }
 
     fetchData();
-  }, [galeriaId, toast, router, form]);
+  }, [galeriaId, user, toast, router, form]);
 
   async function onSubmit(values: FormValues) {
     if (!user) {
@@ -139,11 +142,11 @@ export default function EditarGaleriaPage() {
                     <FormLabel>Asignar a Pacientes</FormLabel>
                     <FormControl>
                       <MultiSelect
-                        options={pacientes}
+                        options={pacientesOptions}
                         selected={field.value}
                         onChange={field.onChange}
-                        placeholder={pacientes.length === 0 ? "No hay pacientes disponibles" : "Seleccionar pacientes..."}
-                        disabled={pacientes.length === 0 || isSubmitting}
+                        placeholder={pacientesOptions.length === 0 ? "No hay pacientes disponibles" : "Seleccionar pacientes..."}
+                        disabled={pacientesOptions.length === 0 || isSubmitting}
                       />
                     </FormControl>
                     <FormMessage />
