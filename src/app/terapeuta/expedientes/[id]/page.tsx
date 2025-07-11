@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle } from "lucide-react";
+import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -51,6 +51,9 @@ const sesionFormSchema = z.object({
 const progresoFormSchema = z.object({
     dolorInicial: z.number().min(0).max(10).optional(),
     dolorFinal: z.number().min(0).max(10).optional(),
+    observacionesObjetivas: z.string().min(10, "Las observaciones deben tener al menos 10 caracteres.").optional(),
+    tecnicasAplicadas: z.string().min(10, "Describe las técnicas aplicadas.").optional(),
+    planProximaSesion: z.string().min(10, "El plan debe tener al menos 10 caracteres.").optional(),
     notasTerapeuta: z.string().min(10, "Las notas deben tener al menos 10 caracteres."),
 });
 
@@ -89,6 +92,9 @@ export default function ExpedienteDetallePage() {
         dolorInicial: 5,
         dolorFinal: 5,
         notasTerapeuta: "",
+        observacionesObjetivas: "",
+        tecnicasAplicadas: "",
+        planProximaSesion: "",
     }
   });
 
@@ -191,6 +197,9 @@ export default function ExpedienteDetallePage() {
             estado: "completada",
             dolorInicial: values.dolorInicial,
             dolorFinal: values.dolorFinal,
+            observacionesObjetivas: values.observacionesObjetivas,
+            tecnicasAplicadas: values.tecnicasAplicadas,
+            planProximaSesion: values.planProximaSesion,
             notasTerapeuta: values.notasTerapeuta,
         });
         await fetchRelatedData();
@@ -223,7 +232,6 @@ export default function ExpedienteDetallePage() {
     setAiSummary(null);
     setIsAiModalOpen(true);
     try {
-      // We need to convert Timestamps to something serializable
       const serializableAvance = JSON.parse(JSON.stringify(avance));
       const summary = await generateProgressSummary({ avance: serializableAvance });
       setAiSummary(summary);
@@ -322,14 +330,16 @@ export default function ExpedienteDetallePage() {
                                         <p><strong className="font-medium text-foreground">Modalidad:</strong> <span className="capitalize">{sesion.modalidad}</span></p>
                                         {sesion.ubicacion && <p><strong className="font-medium text-foreground">Ubicación:</strong> {sesion.ubicacion}</p>}
                                         {sesion.nota && <p><strong className="font-medium text-foreground">Nota Previa:</strong> {sesion.nota}</p>}
-                                        {sesion.estado === 'completada' && sesion.notasTerapeuta && (
-                                            <div className="pt-2 mt-2 border-t">
-                                                <p className="font-semibold text-foreground">Notas de Progreso:</p>
-                                                <p className="whitespace-pre-wrap">{sesion.notasTerapeuta}</p>
+                                        {sesion.estado === 'completada' && (
+                                            <div className="pt-2 mt-2 border-t space-y-3">
                                                 <div className="flex gap-4 mt-1 text-xs">
                                                     <span>Dolor Inicial: {sesion.dolorInicial}/10</span>
                                                     <span>Dolor Final: {sesion.dolorFinal}/10</span>
                                                 </div>
+                                                {sesion.observacionesObjetivas && <div><p className="font-semibold text-foreground">Observaciones Objetivas:</p><p className="whitespace-pre-wrap">{sesion.observacionesObjetivas}</p></div>}
+                                                {sesion.tecnicasAplicadas && <div><p className="font-semibold text-foreground">Técnicas Aplicadas:</p><p className="whitespace-pre-wrap">{sesion.tecnicasAplicadas}</p></div>}
+                                                {sesion.planProximaSesion && <div><p className="font-semibold text-foreground">Plan Próxima Sesión:</p><p className="whitespace-pre-wrap">{sesion.planProximaSesion}</p></div>}
+                                                {sesion.notasTerapeuta && <div><p className="font-semibold text-foreground">Notas Generales:</p><p className="whitespace-pre-wrap">{sesion.notasTerapeuta}</p></div>}
                                             </div>
                                         )}
                                     </div>
@@ -370,7 +380,7 @@ export default function ExpedienteDetallePage() {
                             {avances.map(avance => (
                                 <li key={avance.id} className="p-4 rounded-lg border bg-muted/20">
                                     <div className="flex justify-between items-center mb-3">
-                                        <p className="font-semibold">{format(avance.fechaRegistro.toDate(), "eeee, dd 'de' MMMM, yyyy", { locale: es })}</p>
+                                        <p className="font-semibold">{avance.fechaRegistro ? format(avance.fechaRegistro.toDate(), "eeee, dd 'de' MMMM, yyyy", { locale: es }) : "Fecha no disponible"}</p>
                                         <div className="flex items-center gap-4">
                                             <div className="flex items-center gap-2 text-sm">
                                                 {getMoodIcon(avance.estadoAnimo)}
@@ -419,14 +429,14 @@ export default function ExpedienteDetallePage() {
       
       {/* Modal para registrar progreso de sesión */}
       <Dialog open={isProgresoModalOpen} onOpenChange={setIsProgresoModalOpen}>
-        <DialogContent>
-            <DialogHeader><DialogTitle>Registrar Progreso de la Sesión</DialogTitle></DialogHeader>
+        <DialogContent className="sm:max-w-2xl">
+            <DialogHeader><DialogTitle>Registrar Progreso de la Sesión</DialogTitle><DialogDescription>Añade los detalles clínicos observados durante la sesión.</DialogDescription></DialogHeader>
             <Form {...progresoForm}>
-                <form onSubmit={progresoForm.handleSubmit(onCompletarSesion)} className="space-y-6">
+                <form onSubmit={progresoForm.handleSubmit(onCompletarSesion)} className="space-y-6 max-h-[70vh] overflow-y-auto p-1 pr-4">
                     <div className="grid grid-cols-2 gap-4">
                         <FormField control={progresoForm.control} name="dolorInicial" render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Dolor inicial (0-10)</FormLabel>
+                                <FormLabel>Dolor inicial del paciente (0-10)</FormLabel>
                                 <FormControl>
                                     <>
                                      <Slider defaultValue={[5]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
@@ -437,7 +447,7 @@ export default function ExpedienteDetallePage() {
                         )}/>
                         <FormField control={progresoForm.control} name="dolorFinal" render={({ field }) => (
                              <FormItem>
-                                <FormLabel>Dolor final (0-10)</FormLabel>
+                                <FormLabel>Dolor final del paciente (0-10)</FormLabel>
                                 <FormControl>
                                     <>
                                      <Slider defaultValue={[5]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
@@ -447,14 +457,35 @@ export default function ExpedienteDetallePage() {
                             </FormItem>
                         )}/>
                     </div>
-                    <FormField control={progresoForm.control} name="notasTerapeuta" render={({ field }) => (
+                    <FormField control={progresoForm.control} name="observacionesObjetivas" render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Notas de progreso</FormLabel>
-                            <FormControl><Textarea placeholder="Observaciones, recomendaciones, ejercicios realizados..." {...field} className="min-h-[120px]" /></FormControl>
+                            <FormLabel className="flex items-center gap-2"><ClipboardCheck/>Observaciones Objetivas</FormLabel>
+                            <FormControl><Textarea placeholder="Ej: Mejora en el rango de movimiento de la rodilla, pero persiste debilidad en el vasto medial..." {...field} className="min-h-[100px]" /></FormControl>
                             <FormMessage />
                         </FormItem>
                     )}/>
-                    <DialogFooter>
+                     <FormField control={progresoForm.control} name="tecnicasAplicadas" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center gap-2"><Target/>Técnicas Aplicadas</FormLabel>
+                            <FormControl><Textarea placeholder="Ej: Terapia manual en lumbares, ejercicios de fortalecimiento, electroterapia..." {...field} className="min-h-[100px]" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                     <FormField control={progresoForm.control} name="planProximaSesion" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center gap-2"><Forward/>Plan para Próxima Sesión</FormLabel>
+                            <FormControl><Textarea placeholder="Ej: Re-evaluar fuerza, introducir ejercicios de propiocepción..." {...field} className="min-h-[100px]" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    <FormField control={progresoForm.control} name="notasTerapeuta" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Notas Generales Adicionales</FormLabel>
+                            <FormControl><Textarea placeholder="Cualquier otra observación, comentario del paciente, etc." {...field} className="min-h-[100px]" /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}/>
+                    <DialogFooter className="pt-4 pr-4">
                         <DialogClose asChild><Button type="button" variant="ghost">Cerrar</Button></DialogClose>
                         <Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Guardar Progreso</Button>
                     </DialogFooter>

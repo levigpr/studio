@@ -39,9 +39,13 @@ export interface Sesion {
   ubicacion?: string;
   nota?: string;
   creadaEn: Timestamp;
+  // Campos de progreso registrados por el terapeuta
   notasTerapeuta?: string;
   dolorInicial?: number;
   dolorFinal?: number;
+  observacionesObjetivas?: string;
+  tecnicasAplicadas?: string;
+  planProximaSesion?: string;
 }
 
 
