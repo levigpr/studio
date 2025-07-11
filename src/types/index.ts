@@ -17,14 +17,16 @@ export interface UserProfile {
   rol: "terapeuta" | "paciente";
   fechaRegistro: Timestamp;
   informacionMedica?: InformacionMedica;
-  terapeutaUid?: string; // Asignado al paciente
 }
 
 export interface Expediente {
   id: string;
   pacienteUid: string;
   terapeutaUid: string;
-  descripcion: string;
+  descripcion: string; // Se mantiene por retrocompatibilidad, pero los nuevos campos son prioritarios
+  diagnostico?: string;
+  objetivos?: string;
+  planTratamiento?: string;
   fechaCreacion: Timestamp;
 }
 

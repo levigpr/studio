@@ -77,7 +77,7 @@ export default function ExpedientesPage() {
                     <div className="flex justify-between items-center">
                         <div>
                             <p className="font-semibold flex items-center gap-2"><User className="h-4 w-4 text-muted-foreground"/> {exp.pacienteNombre}</p>
-                            <p className="text-sm text-muted-foreground truncate mt-1">{exp.descripcion}</p>
+                            <p className="text-sm text-muted-foreground truncate mt-1">{exp.diagnostico || exp.descripcion}</p>
                         </div>
                         <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>

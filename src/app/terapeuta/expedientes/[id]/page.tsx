@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, Pencil, Trash2, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh } from "lucide-react";
+import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -59,6 +59,19 @@ const progresoFormSchema = z.object({
     planProximaSesion: z.string().optional(),
     notasTerapeuta: z.string().min(10, "Las notas deben tener al menos 10 caracteres."),
 });
+
+function InfoItem({ label, value, icon }: { label: string; value?: string; icon: React.ReactNode }) {
+  if (!value) return null;
+  return (
+    <div className="space-y-1">
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+        {icon}
+        {label}
+      </h4>
+      <p className="pl-6 text-base whitespace-pre-wrap">{value}</p>
+    </div>
+  );
+}
 
 export default function ExpedienteDetallePage() {
   const params = useParams();
@@ -326,10 +339,25 @@ export default function ExpedienteDetallePage() {
       </div>
       
       <Card>
-        <CardHeader><CardTitle>Descripción General</CardTitle></CardHeader>
-        <CardContent><p className="text-base whitespace-pre-wrap">{expediente.descripcion}</p></CardContent>
+        <CardHeader><CardTitle>Evaluación Clínica</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+            <InfoItem label="Diagnóstico Fisioterapéutico" value={expediente.diagnostico} icon={<ClipboardCheck />} />
+            <InfoItem label="Objetivos del Tratamiento" value={expediente.objetivos} icon={<Target />} />
+            <InfoItem label="Plan de Tratamiento Inicial" value={expediente.planTratamiento} icon={<Forward />} />
+        </CardContent>
       </Card>
       
+      <Card>
+        <CardHeader><CardTitle>Información General del Paciente</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+            <InfoItem label="Contacto de Emergencia" value={paciente.informacionMedica?.contactoEmergencia?.nombre} icon={<AlertCircle />} />
+            <InfoItem label="Teléfono de Emergencia" value={paciente.informacionMedica?.contactoEmergencia?.telefono} icon={<Phone />} />
+            <InfoItem label="Historial Médico Relevante" value={paciente.informacionMedica?.historialMedico} icon={<ClipboardList />} />
+            <InfoItem label="Alergias" value={paciente.informacionMedica?.alergias} icon={<AlertCircle />} />
+            <InfoItem label="Medicamentos Actuales" value={paciente.informacionMedica?.medicamentos} icon={<Pill />} />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2"><Calendar/>Historial del Paciente</CardTitle>

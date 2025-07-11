@@ -1,8 +1,9 @@
+
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
 import { useRouter, usePathname } from 'next/navigation';
@@ -29,6 +30,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        if (!db) {
+            setLoading(false);
+            console.error("Firestore is not initialized");
+            return;
+        }
         const userDocRef = doc(db, "usuarios", firebaseUser.uid);
         const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -68,10 +74,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user) {
         if (userProfile) {
             // User is logged in and has a profile
-            if (userProfile.rol === 'terapeuta' && isAuthPage) {
-                router.replace('/terapeuta');
-            } else if (userProfile.rol === 'paciente' && isAuthPage) {
-                router.replace('/paciente');
+            if (isAuthPage) {
+                if (userProfile.rol === 'terapeuta') {
+                    router.replace('/terapeuta');
+                } else if (userProfile.rol === 'paciente') {
+                    router.replace('/paciente');
+                }
             }
         } else {
             // User is logged in but has no profile, redirect to signup to complete it

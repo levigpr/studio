@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -20,7 +21,9 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   pacienteUid: z.string().min(1, "Debes seleccionar un paciente."),
-  descripcion: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
+  diagnostico: z.string().min(10, "El diagnóstico debe tener al menos 10 caracteres."),
+  objetivos: z.string().min(10, "Los objetivos deben tener al menos 10 caracteres."),
+  planTratamiento: z.string().min(10, "El plan de tratamiento debe tener al menos 10 caracteres."),
 });
 
 export default function CrearExpedientePage() {
@@ -35,7 +38,9 @@ export default function CrearExpedientePage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       pacienteUid: "",
-      descripcion: "",
+      diagnostico: "",
+      objetivos: "",
+      planTratamiento: "",
     },
   });
 
@@ -71,12 +76,13 @@ export default function CrearExpedientePage() {
         ...values,
         terapeutaUid: user.uid,
         fechaCreacion: serverTimestamp(),
+        descripcion: values.diagnostico, // Mantener para compatibilidad
       });
       toast({
         title: "Éxito",
         description: "Expediente creado correctamente.",
       });
-      router.push("/terapeuta");
+      router.push("/terapeuta/expedientes");
     } catch (error) {
       console.error("Error creating document: ", error);
       toast({
@@ -94,6 +100,7 @@ export default function CrearExpedientePage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Crear Nuevo Expediente</CardTitle>
+          <CardDescription>Completa la evaluación clínica inicial del paciente.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -124,14 +131,48 @@ export default function CrearExpedientePage() {
               />
               <FormField
                 control={form.control}
-                name="descripcion"
+                name="diagnostico"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Descripción</FormLabel>
+                    <FormLabel>Diagnóstico Fisioterapéutico</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Añade una descripción detallada del caso, historial, etc."
-                        className="min-h-[150px]"
+                        placeholder="Describe el diagnóstico principal del paciente."
+                        className="min-h-[120px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="objetivos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Objetivos del Tratamiento</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Define los objetivos a corto y largo plazo (ej: 'Reducir dolor en un 50%', 'Recuperar rango de movilidad completo')."
+                        className="min-h-[120px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="planTratamiento"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plan de Tratamiento Inicial</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe las intervenciones y estrategias planeadas (ej: 'Terapia manual, ejercicios de fortalecimiento, educación postural')."
+                        className="min-h-[120px]"
                         {...field}
                       />
                     </FormControl>
