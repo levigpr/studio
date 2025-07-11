@@ -1,12 +1,14 @@
+
 import AppHeader from "@/components/app-header";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { Separator } from "@/components/ui/separator";
-import { FileText, Users, Film } from "lucide-react";
+import { FileText, Users, Film, LayoutDashboard } from "lucide-react";
 
 const sidebarNavItems = [
   {
     title: "Panel General",
     href: "/terapeuta",
+    icon: <LayoutDashboard className="mr-2 h-4 w-4" />,
   },
   {
     title: "Pacientes",
