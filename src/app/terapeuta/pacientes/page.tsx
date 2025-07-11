@@ -26,8 +26,6 @@ export default function PacientesPage() {
       if (!user) return;
       setLoading(true);
       try {
-        // En una app real, aquí se filtraría por pacientes asignados a este terapeuta.
-        // Por ahora, traemos todos los usuarios con rol "paciente".
         const q = query(collection(db, "usuarios"), where("rol", "==", "paciente"));
         const querySnapshot = await getDocs(q);
         const pacientesList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
@@ -50,7 +48,7 @@ export default function PacientesPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Users /> Pacientes</h1>
-        <Button onClick={() => router.push('/signup')}>
+        <Button onClick={() => router.push('/terapeuta/pacientes/crear')}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Añadir Paciente
         </Button>
