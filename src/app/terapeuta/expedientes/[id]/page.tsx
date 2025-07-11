@@ -14,7 +14,7 @@ import * as z from "zod";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill } from "lucide-react";
+import { FileText, User, Calendar, PlusCircle, Loader2, Calendar as CalendarIcon, MoreHorizontal, CheckCircle, XCircle, Clock, Smile, Activity, Sparkles, AlertCircle, ClipboardCheck, Target, Forward, Frown, Meh, HeartPulse, Phone, ClipboardList, Pill, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -49,6 +49,13 @@ const sesionFormSchema = z.object({
     path: ["ubicacion"],
 });
 
+const expedienteFormSchema = z.object({
+  diagnostico: z.string().min(1, "El diagnóstico no puede estar vacío.").optional().or(z.literal('')),
+  objetivos: z.string().min(1, "Los objetivos no pueden estar vacíos.").optional().or(z.literal('')),
+  planTratamiento: z.string().min(1, "El plan de tratamiento no puede estar vacío.").optional().or(z.literal('')),
+});
+
+
 const progresoFormSchema = z.object({
     dolorInicial: z.number().min(0).max(10),
     dolorFinal: z.number().min(0).max(10),
@@ -57,7 +64,7 @@ const progresoFormSchema = z.object({
     observacionesObjetivas: z.string().optional(),
     tecnicasAplicadas: z.string().optional(),
     planProximaSesion: z.string().optional(),
-    notasTerapeuta: z.string().min(10, "Las notas deben tener al menos 10 caracteres."),
+    notasTerapeuta: z.string().optional().or(z.literal('')),
 });
 
 function InfoItem({ label, value, icon }: { label: string; value?: string; icon: React.ReactNode }) {
@@ -89,6 +96,7 @@ export default function ExpedienteDetallePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSesion, setSelectedSesion] = useState<Sesion | null>(null);
   const [isProgresoModalOpen, setIsProgresoModalOpen] = useState(false);
+  const [isExpedienteModalOpen, setIsExpedienteModalOpen] = useState(false);
 
   // State for AI analysis
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -102,6 +110,15 @@ export default function ExpedienteDetallePage() {
       nota: "",
       ubicacion: "",
     }
+  });
+  
+  const expedienteForm = useForm<z.infer<typeof expedienteFormSchema>>({
+      resolver: zodResolver(expedienteFormSchema),
+      defaultValues: {
+          diagnostico: "",
+          objetivos: "",
+          planTratamiento: "",
+      }
   });
 
   const progresoForm = useForm<z.infer<typeof progresoFormSchema>>({
@@ -120,6 +137,46 @@ export default function ExpedienteDetallePage() {
 
   const modalidad = sesionForm.watch("modalidad");
   
+  const fetchExpedienteData = async () => {
+    if (!expedienteId || !user) return;
+    try {
+        const expedienteDocRef = doc(db, "expedientes", expedienteId);
+        const expedienteDocSnap = await getDoc(expedienteDocRef);
+        
+        if (expedienteDocSnap.exists()) {
+          const expData = { id: expedienteDocSnap.id, ...expedienteDocSnap.data() } as Expediente;
+          if (expData.terapeutaUid !== user.uid) {
+             toast({ title: "Acceso denegado", description: "No tienes permiso para ver este expediente.", variant: "destructive" });
+             router.push('/terapeuta/expedientes');
+             return;
+          }
+          setExpediente(expData);
+          expedienteForm.reset({
+              diagnostico: expData.diagnostico || "",
+              objetivos: expData.objetivos || "",
+              planTratamiento: expData.planTratamiento || "",
+          });
+
+          if (!paciente) {
+              const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
+              const pacienteDocSnap = await getDoc(pacienteDocRef);
+              if (pacienteDocSnap.exists()) {
+                setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
+              }
+          }
+
+          await fetchRelatedData(expedienteId, expData.terapeutaUid, expData.pacienteUid);
+        } else {
+          toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
+          router.push('/terapeuta/expedientes');
+        }
+    } catch(error) {
+        console.error("Error fetching main data:", error);
+        toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
+    }
+  }
+
+
   const fetchRelatedData = async (currentExpedienteId: string, terapeutaUid?: string, pacienteUid?: string) => {
       if (!currentExpedienteId || !terapeutaUid || !pacienteUid) return;
       try {
@@ -149,44 +206,12 @@ export default function ExpedienteDetallePage() {
   }
 
   useEffect(() => {
-    if (!expedienteId || !user) return;
-
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const expedienteDocRef = doc(db, "expedientes", expedienteId);
-        const expedienteDocSnap = await getDoc(expedienteDocRef);
-        
-        if (expedienteDocSnap.exists()) {
-          const expData = { id: expedienteDocSnap.id, ...expedienteDocSnap.data() } as Expediente;
-          // Security check: ensure the current user is the therapist for this expediente
-          if (expData.terapeutaUid !== user.uid) {
-             toast({ title: "Acceso denegado", description: "No tienes permiso para ver este expediente.", variant: "destructive" });
-             router.push('/terapeuta/expedientes');
-             return;
-          }
-
-          setExpediente(expData);
-
-          const pacienteDocRef = doc(db, "usuarios", expData.pacienteUid);
-          const pacienteDocSnap = await getDoc(pacienteDocRef);
-          if (pacienteDocSnap.exists()) {
-            setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
-          }
-          await fetchRelatedData(expedienteId, expData.terapeutaUid, expData.pacienteUid);
-        } else {
-          toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
-          router.push('/terapeuta/expedientes');
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast({ title: "Error", description: "No se pudieron cargar los datos del expediente.", variant: "destructive" });
-      } finally {
+    async function initialLoad() {
+        setLoading(true);
+        await fetchExpedienteData();
         setLoading(false);
-      }
     }
-
-    fetchData();
+    initialLoad();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expedienteId, user, router, toast]);
 
@@ -282,6 +307,27 @@ export default function ExpedienteDetallePage() {
       setIsAiLoading(false);
     }
   }
+  
+  async function onGuardarExpediente(values: z.infer<typeof expedienteFormSchema>) {
+    if (!expediente) return;
+    setIsSubmitting(true);
+    try {
+        const expedienteRef = doc(db, "expedientes", expediente.id);
+        await updateDoc(expedienteRef, {
+            diagnostico: values.diagnostico || "",
+            objetivos: values.objetivos || "",
+            planTratamiento: values.planTratamiento || "",
+        });
+        await fetchExpedienteData();
+        toast({ title: "Éxito", description: "El expediente ha sido actualizado." });
+        setIsExpedienteModalOpen(false);
+    } catch (error) {
+        console.error("Error updating expediente:", error);
+        toast({ title: "Error", description: "No se pudo actualizar el expediente.", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
 
   const getBadgeVariant = (estado: Sesion["estado"]) => {
     switch (estado) {
@@ -339,11 +385,76 @@ export default function ExpedienteDetallePage() {
       </div>
       
       <Card>
-        <CardHeader><CardTitle>Evaluación Clínica</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Evaluación Clínica</CardTitle>
+             <Dialog open={isExpedienteModalOpen} onOpenChange={setIsExpedienteModalOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline" size="sm"><Pencil className="mr-2 h-4 w-4" />Editar</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Editar Evaluación Clínica</DialogTitle>
+                        <DialogDescription>Actualiza el diagnóstico, los objetivos y el plan de tratamiento del paciente.</DialogDescription>
+                    </DialogHeader>
+                    <Form {...expedienteForm}>
+                        <form onSubmit={expedienteForm.handleSubmit(onGuardarExpediente)} className="space-y-4">
+                            <FormField
+                                control={expedienteForm.control}
+                                name="diagnostico"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Diagnóstico Fisioterapéutico</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Describe el diagnóstico principal del paciente." className="min-h-[100px]" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={expedienteForm.control}
+                                name="objetivos"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Objetivos del Tratamiento</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Define los objetivos a corto y largo plazo." className="min-h-[100px]" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={expedienteForm.control}
+                                name="planTratamiento"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Plan de Tratamiento Inicial</FormLabel>
+                                        <FormControl>
+                                            <Textarea placeholder="Describe las intervenciones y estrategias planeadas." className="min-h-[100px]" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="ghost">Cancelar</Button>
+                                </DialogClose>
+                                <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Guardar Cambios
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        </CardHeader>
         <CardContent className="space-y-4">
-            <InfoItem label="Diagnóstico Fisioterapéutico" value={expediente.diagnostico} icon={<ClipboardCheck />} />
-            <InfoItem label="Objetivos del Tratamiento" value={expediente.objetivos} icon={<Target />} />
-            <InfoItem label="Plan de Tratamiento Inicial" value={expediente.planTratamiento} icon={<Forward />} />
+            <InfoItem label="Diagnóstico Fisioterapéutico" value={expediente.diagnostico || "No especificado."} icon={<ClipboardCheck />} />
+            <InfoItem label="Objetivos del Tratamiento" value={expediente.objetivos || "No especificado."} icon={<Target />} />
+            <InfoItem label="Plan de Tratamiento Inicial" value={expediente.planTratamiento || "No especificado."} icon={<Forward />} />
         </CardContent>
       </Card>
       

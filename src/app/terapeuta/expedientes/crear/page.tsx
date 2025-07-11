@@ -21,9 +21,9 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   pacienteUid: z.string().min(1, "Debes seleccionar un paciente."),
-  diagnostico: z.string().min(10, "El diagnóstico debe tener al menos 10 caracteres."),
-  objetivos: z.string().min(10, "Los objetivos deben tener al menos 10 caracteres."),
-  planTratamiento: z.string().min(10, "El plan de tratamiento debe tener al menos 10 caracteres."),
+  diagnostico: z.string().optional(),
+  objetivos: z.string().optional(),
+  planTratamiento: z.string().optional(),
 });
 
 export default function CrearExpedientePage() {
@@ -73,10 +73,13 @@ export default function CrearExpedientePage() {
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "expedientes"), {
-        ...values,
+        pacienteUid: values.pacienteUid,
         terapeutaUid: user.uid,
         fechaCreacion: serverTimestamp(),
-        descripcion: values.diagnostico, // Mantener para compatibilidad
+        diagnostico: values.diagnostico || "",
+        objetivos: values.objetivos || "",
+        planTratamiento: values.planTratamiento || "",
+        descripcion: values.diagnostico || "Expediente inicial", // Mantener para compatibilidad
       });
       toast({
         title: "Éxito",
@@ -100,7 +103,9 @@ export default function CrearExpedientePage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Crear Nuevo Expediente</CardTitle>
-          <CardDescription>Completa la evaluación clínica inicial del paciente.</CardDescription>
+          <CardDescription>
+            Selecciona un paciente para crear su expediente. Puedes añadir la evaluación clínica inicial ahora o más tarde.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -134,7 +139,7 @@ export default function CrearExpedientePage() {
                 name="diagnostico"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Diagnóstico Fisioterapéutico</FormLabel>
+                    <FormLabel>Diagnóstico Fisioterapéutico (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Describe el diagnóstico principal del paciente."
@@ -151,7 +156,7 @@ export default function CrearExpedientePage() {
                 name="objetivos"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Objetivos del Tratamiento</FormLabel>
+                    <FormLabel>Objetivos del Tratamiento (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Define los objetivos a corto y largo plazo (ej: 'Reducir dolor en un 50%', 'Recuperar rango de movilidad completo')."
@@ -168,7 +173,7 @@ export default function CrearExpedientePage() {
                 name="planTratamiento"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Plan de Tratamiento Inicial</FormLabel>
+                    <FormLabel>Plan de Tratamiento Inicial (Opcional)</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Describe las intervenciones y estrategias planeadas (ej: 'Terapia manual, ejercicios de fortalecimiento, educación postural')."
