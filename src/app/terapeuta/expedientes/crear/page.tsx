@@ -10,7 +10,6 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,9 +19,7 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   pacienteUid: z.string().min(1, "Debes seleccionar un paciente."),
-  diagnostico: z.string().optional(),
-  objetivos: z.string().optional(),
-  planTratamiento: z.string().optional(),
+  descripcion: z.string().min(5, "La descripción es requerida.").optional().default("Expediente inicial"),
 });
 
 export default function CrearExpedientePage() {
@@ -37,9 +34,7 @@ export default function CrearExpedientePage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       pacienteUid: "",
-      diagnostico: "",
-      objetivos: "",
-      planTratamiento: "",
+      descripcion: "Expediente inicial",
     },
   });
 
@@ -76,10 +71,10 @@ export default function CrearExpedientePage() {
         pacienteUid: values.pacienteUid,
         terapeutaUid: user.uid,
         fechaCreacion: serverTimestamp(),
-        diagnostico: values.diagnostico || "",
-        objetivos: values.objetivos || "",
-        planTratamiento: values.planTratamiento || "",
-        descripcion: values.diagnostico || "Expediente inicial", // Mantener para compatibilidad
+        diagnostico: "", // Campo vacío como se definió
+        objetivos: "", // Campo vacío
+        planTratamiento: "", // Campo vacío
+        descripcion: values.descripcion,
       });
       toast({
         title: "Éxito",
@@ -104,7 +99,7 @@ export default function CrearExpedientePage() {
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Crear Nuevo Expediente</CardTitle>
           <CardDescription>
-            Selecciona un paciente de la lista para crear su expediente clínico. Puedes añadir la evaluación inicial ahora o más tarde.
+            Selecciona un paciente de la lista para crear su expediente clínico inicial.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,57 +129,6 @@ export default function CrearExpedientePage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="diagnostico"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Diagnóstico Fisioterapéutico (Opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe el diagnóstico principal del paciente."
-                        className="min-h-[120px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="objetivos"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Objetivos del Tratamiento (Opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Define los objetivos a corto y largo plazo (ej: 'Reducir dolor en un 50%', 'Recuperar rango de movilidad completo')."
-                        className="min-h-[120px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="planTratamiento"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Plan de Tratamiento Inicial (Opcional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe las intervenciones y estrategias planeadas (ej: 'Terapia manual, ejercicios de fortalecimiento, educación postural')."
-                        className="min-h-[120px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Guardar Expediente
@@ -196,3 +140,4 @@ export default function CrearExpedientePage() {
     </div>
   );
 }
+
