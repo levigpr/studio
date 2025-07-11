@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -22,7 +23,7 @@ import { Loader2, HeartPulse } from "lucide-react";
 const formSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("Por favor, introduce un email válido."),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres.").optional().or(z.literal('')),
   rol: z.enum(["paciente", "terapeuta"], {
     required_error: "Debes seleccionar un rol.",
   }),
@@ -40,6 +41,7 @@ export function SignupForm() {
       nombre: "",
       email: authenticatedUser?.email || "", // Pre-fill email if user exists
       password: "",
+      rol: undefined,
     },
   });
 
@@ -56,6 +58,11 @@ export function SignupForm() {
             await updateProfile(user, { displayName: values.nombre });
         }
       } else {
+         if (!values.password) {
+            toast({ title: "Error", description: "La contraseña es requerida.", variant: "destructive" });
+            setIsLoading(false);
+            return;
+         }
          const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
          user = userCredential.user;
       }
