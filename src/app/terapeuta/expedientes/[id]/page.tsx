@@ -107,8 +107,8 @@ export default function ExpedienteDetallePage() {
 
   const modalidad = sesionForm.watch("modalidad");
   
-  const fetchRelatedData = async (currentExpedienteId: string) => {
-      if (!currentExpedienteId) return;
+  const fetchRelatedData = async (currentExpedienteId: string, terapeutaUid?: string, pacienteUid?: string) => {
+      if (!currentExpedienteId || !terapeutaUid || !pacienteUid) return;
       try {
         // Fetch Sesiones
         const sesionesQuery = query(collection(db, "sesiones"), where("expedienteId", "==", currentExpedienteId));
@@ -160,7 +160,7 @@ export default function ExpedienteDetallePage() {
           if (pacienteDocSnap.exists()) {
             setPaciente({ uid: pacienteDocSnap.id, ...pacienteDocSnap.data() } as UserProfile);
           }
-          await fetchRelatedData(expedienteId);
+          await fetchRelatedData(expedienteId, expData.terapeutaUid, expData.pacienteUid);
         } else {
           toast({ title: "Error", description: "Expediente no encontrado.", variant: "destructive" });
           router.push('/terapeuta/expedientes');
@@ -193,7 +193,7 @@ export default function ExpedienteDetallePage() {
         creadaEn: serverTimestamp(),
       });
 
-      await fetchRelatedData(expedienteId);
+      await fetchRelatedData(expedienteId, expediente.terapeutaUid, expediente.pacienteUid);
       toast({ title: "Éxito", description: "Sesión agendada correctamente." });
       sesionForm.reset({ modalidad: 'presencial', fecha: undefined, ubicacion: '', nota: '' });
       setIsModalOpen(false);
@@ -220,7 +220,7 @@ export default function ExpedienteDetallePage() {
             planProximaSesion: values.planProximaSesion || "",
             notasTerapeuta: values.notasTerapeuta,
         });
-        await fetchRelatedData(expedienteId);
+        await fetchRelatedData(expedienteId, expediente?.terapeutaUid, expediente?.pacienteUid);
         toast({ title: "Éxito", description: "La sesión ha sido marcada como completada." });
         setIsProgresoModalOpen(false);
         progresoForm.reset();
@@ -237,7 +237,7 @@ export default function ExpedienteDetallePage() {
     try {
         const sesionRef = doc(db, "sesiones", sesionId);
         await updateDoc(sesionRef, { estado: "cancelada" });
-        await fetchRelatedData(expedienteId);
+        await fetchRelatedData(expedienteId, expediente?.terapeutaUid, expediente?.pacienteUid);
         toast({ title: "Éxito", description: "La sesión ha sido cancelada." });
     } catch (error) {
         toast({ title: "Error", description: "No se pudo cancelar la sesión.", variant: "destructive" });
@@ -487,10 +487,10 @@ export default function ExpedienteDetallePage() {
                             <FormItem>
                                 <FormLabel>Dolor inicial del paciente (0-10)</FormLabel>
                                 <FormControl>
-                                    <>
+                                    <div>
                                      <Slider value={[field.value]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
                                      <p className="text-center font-bold text-lg">{field.value}</p>
-                                    </>
+                                    </div>
                                 </FormControl>
                             </FormItem>
                         )}/>
@@ -498,10 +498,10 @@ export default function ExpedienteDetallePage() {
                              <FormItem>
                                 <FormLabel>Dolor final del paciente (0-10)</FormLabel>
                                 <FormControl>
-                                    <>
+                                    <div>
                                      <Slider value={[field.value]} max={10} step={1} onValueChange={(value) => field.onChange(value[0])} />
                                      <p className="text-center font-bold text-lg">{field.value}</p>
-                                    </>
+                                    </div>
                                 </FormControl>
                             </FormItem>
                         )}/>
@@ -628,8 +628,3 @@ export default function ExpedienteDetallePage() {
     </div>
   );
 }
-
-    
-
-    
-
