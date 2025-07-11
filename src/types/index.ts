@@ -46,6 +46,8 @@ export interface Sesion {
   observacionesObjetivas?: string;
   tecnicasAplicadas?: string;
   planProximaSesion?: string;
+  progresoPercibido?: 'mejoria-significativa' | 'mejoria-leve' | 'sin-cambios' | 'retroceso-leve' | 'retroceso-significativo';
+  estadoAnimoObservado?: 'muy-bien' | 'bien' | 'regular' | 'mal' | 'muy-mal';
 }
 
 

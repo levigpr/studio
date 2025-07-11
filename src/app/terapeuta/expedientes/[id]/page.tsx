@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,8 @@ const sesionFormSchema = z.object({
 const progresoFormSchema = z.object({
     dolorInicial: z.number().min(0).max(10),
     dolorFinal: z.number().min(0).max(10),
+    progresoPercibido: z.enum(['mejoria-significativa', 'mejoria-leve', 'sin-cambios', 'retroceso-leve', 'retroceso-significativo']).optional(),
+    estadoAnimoObservado: z.enum(['muy-bien', 'bien', 'regular', 'mal', 'muy-mal']).optional(),
     observacionesObjetivas: z.string().optional(),
     tecnicasAplicadas: z.string().optional(),
     planProximaSesion: z.string().optional(),
@@ -94,6 +97,8 @@ export default function ExpedienteDetallePage() {
         dolorInicial: 5,
         dolorFinal: 5,
         notasTerapeuta: "",
+        progresoPercibido: undefined,
+        estadoAnimoObservado: undefined,
         observacionesObjetivas: "",
         tecnicasAplicadas: "",
         planProximaSesion: "",
@@ -208,6 +213,8 @@ export default function ExpedienteDetallePage() {
             estado: "completada",
             dolorInicial: values.dolorInicial,
             dolorFinal: values.dolorFinal,
+            progresoPercibido: values.progresoPercibido || null,
+            estadoAnimoObservado: values.estadoAnimoObservado || null,
             observacionesObjetivas: values.observacionesObjetivas || "",
             tecnicasAplicadas: values.tecnicasAplicadas || "",
             planProximaSesion: values.planProximaSesion || "",
@@ -272,7 +279,7 @@ export default function ExpedienteDetallePage() {
     }
   };
 
-  const getMoodIcon = (mood?: Avance['estadoAnimo']) => {
+  const getMoodIcon = (mood?: Avance['estadoAnimo'] | Sesion['estadoAnimoObservado']) => {
     switch (mood) {
         case 'muy-bien': return <Smile className="text-green-500" />;
         case 'bien': return <Smile className="text-lime-500" />;
@@ -282,6 +289,14 @@ export default function ExpedienteDetallePage() {
         default: return <Meh />;
     }
   }
+  
+  const progresoLabels: Record<NonNullable<Sesion['progresoPercibido']>, string> = {
+    'mejoria-significativa': 'Mejoría Significativa',
+    'mejoria-leve': 'Mejoría Leve',
+    'sin-cambios': 'Sin Cambios',
+    'retroceso-leve': 'Retroceso Leve',
+    'retroceso-significativo': 'Retroceso Significativo'
+  };
 
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (!expediente || !paciente) return <p>No se pudo encontrar la información del expediente.</p>;
@@ -351,9 +366,11 @@ export default function ExpedienteDetallePage() {
                                         {sesion.nota && <p><strong className="font-medium text-foreground">Nota Previa:</strong> {sesion.nota}</p>}
                                         {sesion.estado === 'completada' && (
                                             <div className="pt-2 mt-2 border-t space-y-3">
-                                                <div className="flex gap-4 mt-1 text-xs">
+                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 mt-1 text-xs">
                                                     <span>Dolor Inicial: {sesion.dolorInicial ?? 'N/A'}/10</span>
                                                     <span>Dolor Final: {sesion.dolorFinal ?? 'N/A'}/10</span>
+                                                    {sesion.progresoPercibido && <span>Progreso: {progresoLabels[sesion.progresoPercibido]}</span>}
+                                                    {sesion.estadoAnimoObservado && <span className="flex items-center gap-1">Ánimo: <span className="capitalize">{sesion.estadoAnimoObservado.replace('-', ' ')}</span> {getMoodIcon(sesion.estadoAnimoObservado)}</span>}
                                                 </div>
                                                 {sesion.observacionesObjetivas && <div><p className="font-semibold text-foreground">Observaciones Objetivas:</p><p className="whitespace-pre-wrap">{sesion.observacionesObjetivas}</p></div>}
                                                 {sesion.tecnicasAplicadas && <div><p className="font-semibold text-foreground">Técnicas Aplicadas:</p><p className="whitespace-pre-wrap">{sesion.tecnicasAplicadas}</p></div>}
@@ -371,11 +388,12 @@ export default function ExpedienteDetallePage() {
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem onClick={() => {
                                                 setSelectedSesion(sesion); 
-                                                // Pre-fill form if needed, e.g., for editing
                                                 progresoForm.reset({
                                                     dolorInicial: sesion.dolorInicial ?? 5,
                                                     dolorFinal: sesion.dolorFinal ?? 5,
                                                     notasTerapeuta: sesion.notasTerapeuta ?? "",
+                                                    progresoPercibido: sesion.progresoPercibido ?? undefined,
+                                                    estadoAnimoObservado: sesion.estadoAnimoObservado ?? undefined,
                                                     observacionesObjetivas: sesion.observacionesObjetivas ?? "",
                                                     tecnicasAplicadas: sesion.tecnicasAplicadas ?? "",
                                                     planProximaSesion: sesion.planProximaSesion ?? "",
@@ -488,6 +506,45 @@ export default function ExpedienteDetallePage() {
                             </FormItem>
                         )}/>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <FormField control={progresoForm.control} name="progresoPercibido" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Progreso Percibido</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecciona el progreso..." />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="mejoria-significativa">Mejoría Significativa</SelectItem>
+                                        <SelectItem value="mejoria-leve">Mejoría Leve</SelectItem>
+                                        <SelectItem value="sin-cambios">Sin Cambios</SelectItem>
+                                        <SelectItem value="retroceso-leve">Retroceso Leve</SelectItem>
+                                        <SelectItem value="retroceso-significativo">Retroceso Significativo</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+
+                        <FormField control={progresoForm.control} name="estadoAnimoObservado" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Estado de Ánimo Observado</FormLabel>
+                                <FormControl>
+                                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex flex-wrap gap-2 pt-2">
+                                        <FormItem><FormControl><RadioGroupItem value="muy-bien" id="r1_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r1_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Smile size={20}/> Muy Bien</FormLabel></FormItem>
+                                        <FormItem><FormControl><RadioGroupItem value="bien" id="r2_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r2_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Smile size={20}/> Bien</FormLabel></FormItem>
+                                        <FormItem><FormControl><RadioGroupItem value="regular" id="r3_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r3_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Meh size={20}/> Regular</FormLabel></FormItem>
+                                        <FormItem><FormControl><RadioGroupItem value="mal" id="r4_ter" className="sr-only" /></FormControl><FormLabel htmlFor="r4_ter" className="flex items-center gap-2 rounded-md border-2 border-muted bg-popover p-2 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"><Frown size={20}/> Mal</FormLabel></FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage/>
+                            </FormItem>
+                        )}/>
+                    </div>
+
                     <FormField control={progresoForm.control} name="observacionesObjetivas" render={({ field }) => (
                         <FormItem>
                             <FormLabel className="flex items-center gap-2"><ClipboardCheck/>Observaciones Objetivas</FormLabel>
@@ -575,3 +632,4 @@ export default function ExpedienteDetallePage() {
     
 
     
+
