@@ -1,47 +1,65 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if a user's role is therapist
-    function isTherapist(userId) {
-      return get(/databases/$(database)/documents/usuarios/$(userId)).data.rol == 'terapeuta';
-    }
-
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
+  
+    function isAuth() {
       return request.auth != null;
     }
 
-    // Users can create their own profile during signup.
-    // Users can read and update their own profile.
-    // Therapists can read any user's profile.
-    match /usuarios/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isTherapist(request.auth.uid));
-      allow create: if request.auth.uid == userId;
-      allow update: if isAuthenticated() && request.auth.uid == userId;
+    // Helper function to check if the user is the owner of their profile
+    function isProfileOwner(userId) {
+      return request.auth.uid == userId;
     }
 
-    // Therapists can create/read/update/delete any expediente.
-    // Patients can only read expedientes where their UID is present.
-    match /expedientes/{expedienteId} {
-      allow read: if isAuthenticated() && (isTherapist(request.auth.uid) || resource.data.pacienteUid == request.auth.uid);
-      allow create, update, delete: if isAuthenticated() && isTherapist(request.auth.uid);
+    // Helper function to check if user is the therapist for a given resource
+    function isResourceTherapist(resource) {
+      return request.auth.uid == resource.data.terapeutaUid;
     }
 
-    // Therapists can create/read/update/delete any session.
-    // Patients can only read sessions where their UID is present.
-    match /sesiones/{sesionId} {
-      allow read: if isAuthenticated() && (isTherapist(request.auth.uid) || resource.data.pacienteUid == request.auth.uid);
-      allow create, update, delete: if isAuthenticated() && isTherapist(request.auth.uid);
+    // Helper function to check if user is the patient for a given resource
+    function isResourcePatient(resource) {
+      return request.auth.uid == resource.data.pacienteUid;
     }
     
-    // Therapists can create/read/update/delete any gallery.
-    // Patients can only read galleries assigned to them.
+    // Helper function to check if user is assigned to a gallery
+    function isAssignedToGallery(resource) {
+      return request.auth.uid in resource.data.pacientesAsignados;
+    }
+    
+    // Helper function to check if user is creator of a gallery
+    function isGalleryCreator(resource) {
+      return request.auth.uid == resource.data.creadaPor;
+    }
+
+    // Rules for user profiles
+    match /usuarios/{userId} {
+      // Allow authenticated users to read the list of users (for therapist dropdowns)
+      allow list: if isAuth();
+      // Allow users to read their own profile, or if they are a therapist
+      allow get: if isAuth();
+      // Allow users to create their own profile or update their own profile
+      allow create, update: if isProfileOwner(userId);
+    }
+    
+    // Rules for medical records
+    match /expedientes/{expedienteId} {
+      allow read: if isAuth() && (isResourceTherapist(resource) || isResourcePatient(resource));
+      allow write: if isAuth() && isResourceTherapist(resource);
+    }
+    
+    // Rules for sessions
+    match /sesiones/{sesionId} {
+       allow read: if isAuth() && (isResourceTherapist(resource) || isResourcePatient(resource));
+       allow write: if isAuth() && isResourceTherapist(resource);
+    }
+
+    // Rules for galleries
     match /galerias/{galeriaId} {
-       allow read: if isAuthenticated() && (isTherapist(request.auth.uid) || request.auth.uid in resource.data.pacientesAsignados);
-       allow create, update, delete: if isAuthenticated() && isTherapist(request.auth.uid);
+      // A patient can read a gallery if they are assigned. A therapist can read if they created it.
+      allow read: if isAuth() && (isAssignedToGallery(resource) || isGalleryCreator(resource));
+      // Only the therapist who created the gallery can modify it.
+      allow write: if isAuth() && isGalleryCreator(resource);
     }
   }
 }
