@@ -56,7 +56,6 @@ export function MultiSelect({
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between h-auto", selected.length > 0 ? 'h-full' : 'h-10')}
-          onClick={() => setOpen(!open)}
           disabled={disabled}
         >
           <div className="flex gap-1 flex-wrap">
