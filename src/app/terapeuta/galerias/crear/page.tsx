@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import type { UserProfile } from "@/types";
 import { Loader2, PlusCircle, Trash2 } from "lucide-react";
-import { MultiSelect } from "@/components/ui/multi-select";
 
 const videoSchema = z.object({
   titulo: z.string().min(1, "El título es requerido."),
@@ -27,15 +25,12 @@ const formSchema = z.object({
   nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
   descripcion: z.string().min(10, "La descripción debe tener al menos 10 caracteres."),
   videos: z.array(videoSchema).min(1, "Debes añadir al menos un video."),
-  pacientesAsignados: z.array(z.string()).min(1, "Debes asignar al menos un paciente."),
 });
 
 export default function CrearGaleriaPage() {
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [pacientes, setPacientes] = useState<{ value: string; label: string }[]>([]);
-  const [loadingPacientes, setLoadingPacientes] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -44,7 +39,6 @@ export default function CrearGaleriaPage() {
       nombre: "",
       descripcion: "",
       videos: [{ titulo: "", youtubeUrl: "" }],
-      pacientesAsignados: [],
     },
   });
 
@@ -52,29 +46,6 @@ export default function CrearGaleriaPage() {
     control: form.control,
     name: "videos",
   });
-
-  useEffect(() => {
-    async function fetchPacientes() {
-      try {
-        const q = query(collection(db, "usuarios"), where("rol", "==", "paciente"));
-        const querySnapshot = await getDocs(q);
-        const pacientesList = querySnapshot.docs.map(doc => ({
-          value: doc.id,
-          label: doc.data().nombre,
-        }));
-        setPacientes(pacientesList);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los pacientes.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoadingPacientes(false);
-      }
-    }
-    fetchPacientes();
-  }, [toast]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
@@ -88,6 +59,7 @@ export default function CrearGaleriaPage() {
         ...values,
         creadaPor: user.uid,
         fechaCreacion: serverTimestamp(),
+        pacientesAsignados: [], // Start with an empty array
       });
       toast({
         title: "Éxito",
@@ -111,7 +83,7 @@ export default function CrearGaleriaPage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Crear Nueva Galería de Videos</CardTitle>
-          <CardDescription>Crea y asigna galerías de ejercicios a tus pacientes.</CardDescription>
+          <CardDescription>Crea una nueva galería. Podrás asignar pacientes después de crearla.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -181,26 +153,6 @@ export default function CrearGaleriaPage() {
                 </Button>
                 <FormField control={form.control} name="videos" render={() => <FormMessage />} />
               </div>
-
-              <FormField
-                control={form.control}
-                name="pacientesAsignados"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Asignar a Pacientes</FormLabel>
-                    <FormControl>
-                        <MultiSelect
-                            options={pacientes}
-                            selected={field.value}
-                            onChange={field.onChange}
-                            placeholder={loadingPacientes ? "Cargando..." : "Seleccionar pacientes..."}
-                            disabled={loadingPacientes}
-                        />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

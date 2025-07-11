@@ -7,7 +7,7 @@ import { collection, query, where, getDocs, doc, getDoc, DocumentData } from "fi
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Loader2, User, FileText, Film } from "lucide-react";
+import { PlusCircle, Loader2, User, FileText, Film, Pencil } from "lucide-react";
 import type { Expediente, Galeria } from "@/types";
 
 interface ExpedienteConPaciente extends Expediente {
@@ -105,10 +105,17 @@ export default function TerapeutaPage() {
                 {galerias.length > 0 ? (
                   <ul className="space-y-4">
                     {galerias.map(gal => (
-                      <li key={gal.id} className="p-4 rounded-lg border bg-card">
-                        <p className="font-semibold">{gal.nombre}</p>
-                        <p className="text-sm text-muted-foreground">{gal.descripcion}</p>
-                         <p className="text-xs text-muted-foreground mt-2">{gal.pacientesAsignados.length} paciente(s) asignado(s)</p>
+                      <li key={gal.id} className="p-4 rounded-lg border bg-card flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold">{gal.nombre}</p>
+                          <p className="text-sm text-muted-foreground">{gal.descripcion}</p>
+                           <p className="text-xs text-muted-foreground mt-2">{gal.pacientesAsignados.length} paciente(s) asignado(s)</p>
+                        </div>
+                        <Button variant="outline" size="sm" asChild>
+                           <Link href={`/terapeuta/galerias/editar/${gal.id}`}>
+                              <Pencil className="h-4 w-4 mr-2" /> Editar
+                           </Link>
+                        </Button>
                       </li>
                     ))}
                   </ul>
