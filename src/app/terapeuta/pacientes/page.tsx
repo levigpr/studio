@@ -11,10 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, Users, ChevronRight, PlusCircle } from "lucide-react";
+import { Loader2, Users, ChevronRight } from "lucide-react";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import Link from "next/link";
 
 export default function PacientesPage() {
   const { user } = useAuth();
@@ -50,11 +49,6 @@ export default function PacientesPage() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Users /> Pacientes</h1>
-        <Button asChild>
-          <Link href="/terapeuta/pacientes/crear">
-            <PlusCircle className="mr-2 h-4 w-4" /> Añadir Paciente
-          </Link>
-        </Button>
       </div>
 
       <Card>

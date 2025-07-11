@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, HeartPulse } from "lucide-react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
-// Este formulario ahora SOLO se encarga del auto-registro.
-// El terapeuta tiene su propio formulario para crear pacientes.
+const functions = getFunctions(auth.app);
+const createUser = httpsCallable(functions, 'createUser');
+
 const formSchema = z.object({
   nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
   email: z.string().email("Por favor, introduce un email válido."),
@@ -50,9 +52,6 @@ export function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const functions = getFunctions(auth.app);
-  const createUser = httpsCallable(functions, 'createUser');
-
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,15 +73,12 @@ export function SignupForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
-    // Llamamos a la Cloud Function para crear el usuario.
-    // Esto asegura que el perfil de Firestore y los custom claims se creen correctamente en el backend.
     try {
         await createUser({
             nombre: values.nombre,
             email: values.email,
+            password: values.password, // Password is now required for self-registration
             rol: values.rol,
-            // La función de nube esperará la contraseña para crear el usuario en Auth
-            password: values.password,
             informacionMedica: {
                 contactoEmergenciaNombre: values.contactoEmergenciaNombre,
                 contactoEmergenciaTelefono: values.contactoEmergenciaTelefono,
@@ -96,14 +92,17 @@ export function SignupForm() {
             title: "¡Registro exitoso!",
             description: "Tu cuenta ha sido creada. Ahora puedes iniciar sesión.",
         });
+
+        // Log the user in automatically after successful registration
+        await signInWithEmailAndPassword(auth, values.email, values.password);
         
-        // Redirigir al login para que el usuario inicie sesión y se active el listener de Auth
-        router.push('/');
+        // The auth context will handle the redirection automatically
 
     } catch (error: any) {
       console.error(error);
       let description = "Ocurrió un error. Por favor, inténtalo de nuevo.";
-      if (error.message.includes('auth/email-already-in-use') || error.message.includes('EMAIL_EXISTS')) {
+      // Use error code from Firebase functions for more specific messages
+      if (error.code === 'functions/already-exists' || error.message.includes('EMAIL_EXISTS')) {
         description = "Este correo electrónico ya está en uso.";
       }
       toast({

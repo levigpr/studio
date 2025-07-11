@@ -1,201 +1,105 @@
-
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { useToast } from "@/hooks/use-toast";
-
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/auth-context";
+import type { UserProfile } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Loader2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2, Users, ChevronRight } from "lucide-react";
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
-const functions = getFunctions(auth.app);
-const createUser = httpsCallable(functions, 'createUser');
-
-// Para el terapeuta, la contraseña no es necesaria, la función de nube no la pedirá
-// si el que llama es un terapeuta. El paciente establecerá su contraseña después.
-const formSchema = z.object({
-  nombre: z.string().min(2, "El nombre debe tener al menos 2 caracteres."),
-  email: z.string().email("Por favor, introduce un email válido."),
-  // Campos adicionales para el perfil del paciente
-  contactoEmergenciaNombre: z.string().optional(),
-  contactoEmergenciaTelefono: z.string().optional(),
-  historialMedico: z.string().optional(),
-  alergias: z.string().optional(),
-  medicamentos: z.string().optional(),
-});
-
-
-export default function CrearPacientePage() {
-  const [isLoading, setIsLoading] = useState(false);
+export default function PacientesPage() {
+  const { user } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const [pacientes, setPacientes] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      nombre: "",
-      email: "",
-      contactoEmergenciaNombre: "",
-      contactoEmergenciaTelefono: "",
-      historialMedico: "",
-      alergias: "",
-      medicamentos: "",
-    },
-  });
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-    
-    try {
-        await createUser({
-            nombre: values.nombre,
-            email: values.email,
-            rol: "paciente", // Rol es siempre paciente desde este formulario
-            informacionMedica: {
-                contactoEmergenciaNombre: values.contactoEmergenciaNombre,
-                contactoEmergenciaTelefono: values.contactoEmergenciaTelefono,
-                historialMedico: values.historialMedico,
-                alergias: values.alergias,
-                medicamentos: values.medicamentos,
-            },
-        });
-        toast({
-            title: "Usuario creado",
-            description: "El nuevo paciente ha sido registrado. Deberá usar la función 'olvidé mi contraseña' para establecer una.",
-        });
-        router.push('/terapeuta/pacientes');
-    } catch (error: any) {
-        console.error(error);
-        toast({
-            title: "Error al crear usuario",
-            description: error.message || "No se pudo crear el perfil del paciente.",
-            variant: "destructive",
-        });
-    } finally {
-        setIsLoading(false);
+  useEffect(() => {
+    async function fetchPacientes() {
+      if (!user) return;
+      setLoading(true);
+      try {
+        const q = query(collection(db, "usuarios"), where("rol", "==", "paciente"));
+        const querySnapshot = await getDocs(q);
+        const pacientesList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile));
+        setPacientes(pacientesList);
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+      } finally {
+        setLoading(false);
+      }
     }
-  }
+
+    fetchPacientes();
+  }, [user]);
+
+  const getInitials = (name: string) => {
+    if (!name) return '';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
 
   return (
-    <main className="container mx-auto max-w-2xl py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline text-2xl">Añadir Nuevo Paciente</CardTitle>
-          <CardDescription>
-            Registra los datos del nuevo paciente. El paciente recibirá un email para configurar su contraseña.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="nombre"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nombre completo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nombre del paciente" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="paciente@email.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="space-y-4 pt-4 border-t">
-                  <h3 className="text-lg font-semibold text-center">Información Médica Adicional (Opcional)</h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="contactoEmergenciaNombre"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contacto de emergencia</FormLabel>
-                          <FormControl><Input placeholder="Nombre" {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactoEmergenciaTelefono"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Teléfono de emergencia</FormLabel>
-                          <FormControl><Input placeholder="Número de teléfono" {...field} /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="historialMedico"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Historial Médico Relevante</FormLabel>
-                        <FormControl><Textarea placeholder="Cirugías previas, condiciones crónicas, etc." {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="alergias"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Alergias</FormLabel>
-                        <FormControl><Textarea placeholder="Medicamentos, alimentos, etc." {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="medicamentos"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Medicamentos Actuales</FormLabel>
-                        <FormControl><Textarea placeholder="Nombre del medicamento, dosis, frecuencia..." {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold font-headline flex items-center gap-2"><Users /> Pacientes</h1>
+      </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Añadir Paciente
-              </Button>
-            </form>
-          </Form>
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-16 w-16 animate-spin" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px]">Avatar</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Fecha de Registro</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pacientes.length > 0 ? (
+                  pacientes.map(paciente => (
+                    <TableRow key={paciente.uid} className="cursor-pointer" onClick={() => router.push(`/terapeuta/pacientes/${paciente.uid}`)}>
+                      <TableCell>
+                        <Avatar>
+                          <AvatarFallback>{getInitials(paciente.nombre)}</AvatarFallback>
+                        </Avatar>
+                      </TableCell>
+                      <TableCell className="font-medium">{paciente.nombre}</TableCell>
+                      <TableCell className="text-muted-foreground">{paciente.email}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {paciente.fechaRegistro ? format(paciente.fechaRegistro.toDate(), 'dd MMM yyyy', { locale: es }) : 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                         <Button variant="ghost" size="icon">
+                            <ChevronRight className="h-4 w-4" />
+                         </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      No se encontraron pacientes.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }
